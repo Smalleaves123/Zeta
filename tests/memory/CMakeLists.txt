@@ -1,0 +1,1 @@
+zeta_test(function_ref_test)

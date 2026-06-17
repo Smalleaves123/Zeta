@@ -1,0 +1,29 @@
+# Build directories
+build/
+cmake-build-*/
+.clang-format
+.clang-tidy
+# Claude Code
+.claude/
+
+# CI (local only — managed outside the repo)
+.github/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+*.AppleDouble
+*.LSOverride
+
+# Compiled
+*.o
+*.obj
+*.exe
+*.out
+*.app
