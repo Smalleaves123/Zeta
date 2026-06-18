@@ -76,8 +76,12 @@ public:
     [[nodiscard]] friend constexpr Uint128 operator%(Uint128 a, Uint128 b) noexcept {
         assert(b.val_ != 0); Uint128 r; r.val_ = a.val_ % b.val_; return r;
     }
-    [[nodiscard]] friend constexpr Uint128 operator<<(Uint128 a, int bits) noexcept { Uint128 r; r.val_ = a.val_ << bits; return r; }
-    [[nodiscard]] friend constexpr Uint128 operator>>(Uint128 a, int bits) noexcept { Uint128 r; r.val_ = a.val_ >> bits; return r; }
+    [[nodiscard]] friend constexpr Uint128 operator<<(Uint128 a, int bits) noexcept {
+        if (bits >= 128 || bits < 0) return Uint128(); Uint128 r; r.val_ = a.val_ << bits; return r;
+    }
+    [[nodiscard]] friend constexpr Uint128 operator>>(Uint128 a, int bits) noexcept {
+        if (bits >= 128 || bits < 0) return Uint128(); Uint128 r; r.val_ = a.val_ >> bits; return r;
+    }
     [[nodiscard]] friend constexpr Uint128 operator&(Uint128 a, Uint128 b) noexcept  { Uint128 r; r.val_ = a.val_ & b.val_; return r; }
     [[nodiscard]] friend constexpr Uint128 operator|(Uint128 a, Uint128 b) noexcept  { Uint128 r; r.val_ = a.val_ | b.val_; return r; }
     [[nodiscard]] friend constexpr Uint128 operator^(Uint128 a, Uint128 b) noexcept  { Uint128 r; r.val_ = a.val_ ^ b.val_; return r; }
@@ -89,8 +93,8 @@ public:
     constexpr Uint128& operator*=(Uint128 o) noexcept { val_ *= o.val_; return *this; }
     constexpr Uint128& operator/=(Uint128 o) noexcept { assert(o.val_); val_ /= o.val_; return *this; }
     constexpr Uint128& operator%=(Uint128 o) noexcept { assert(o.val_); val_ %= o.val_; return *this; }
-    constexpr Uint128& operator<<=(int bits) noexcept { val_ <<= bits; return *this; }
-    constexpr Uint128& operator>>=(int bits) noexcept { val_ >>= bits; return *this; }
+    constexpr Uint128& operator<<=(int bits) noexcept { if (bits >= 128 || bits < 0) val_ = 0; else val_ <<= bits; return *this; }
+    constexpr Uint128& operator>>=(int bits) noexcept { if (bits >= 128 || bits < 0) val_ = 0; else val_ >>= bits; return *this; }
     constexpr Uint128& operator&=(Uint128 o) noexcept { val_ &= o.val_; return *this; }
     constexpr Uint128& operator|=(Uint128 o) noexcept { val_ |= o.val_; return *this; }
     constexpr Uint128& operator^=(Uint128 o) noexcept { val_ ^= o.val_; return *this; }
@@ -234,7 +238,10 @@ public:
 
     [[nodiscard]] static constexpr Int128 FromPair(int64_t hi, uint64_t lo) noexcept {
         Int128 r;
-        r.val_ = (static_cast<__int128>(hi) << 64) | static_cast<__int128>(lo);
+        // Use unsigned shift to avoid UB on negative hi (C++ prohibits
+        // left-shifting signed negative values).
+        __uint128_t u = (static_cast<__uint128_t>(static_cast<uint64_t>(hi)) << 64) | lo;
+        r.val_ = static_cast<__int128>(u);
         return r;
     }
 
@@ -255,8 +262,12 @@ public:
     [[nodiscard]] friend constexpr Int128 operator/(Int128 a, Int128 b) noexcept { assert(b); Int128 r; r.val_ = a.val_ / b.val_; return r; }
     [[nodiscard]] friend constexpr Int128 operator%(Int128 a, Int128 b) noexcept { assert(b); Int128 r; r.val_ = a.val_ % b.val_; return r; }
     [[nodiscard]] friend constexpr Int128 operator-(Int128 a) noexcept { Int128 r; r.val_ = -a.val_; return r; }
-    [[nodiscard]] friend constexpr Int128 operator<<(Int128 a, int bits) noexcept { Int128 r; r.val_ = a.val_ << bits; return r; }
-    [[nodiscard]] friend constexpr Int128 operator>>(Int128 a, int bits) noexcept { Int128 r; r.val_ = a.val_ >> bits; return r; }
+    [[nodiscard]] friend constexpr Int128 operator<<(Int128 a, int bits) noexcept {
+        if (bits >= 128 || bits < 0) return Int128(0); Int128 r; r.val_ = a.val_ << bits; return r;
+    }
+    [[nodiscard]] friend constexpr Int128 operator>>(Int128 a, int bits) noexcept {
+        if (bits >= 128 || bits < 0) return Int128(a.val_ < 0 ? -1 : 0); Int128 r; r.val_ = a.val_ >> bits; return r;
+    }
     [[nodiscard]] friend constexpr Int128 operator&(Int128 a, Int128 b) noexcept { Int128 r; r.val_ = a.val_ & b.val_; return r; }
     [[nodiscard]] friend constexpr Int128 operator|(Int128 a, Int128 b) noexcept { Int128 r; r.val_ = a.val_ | b.val_; return r; }
     [[nodiscard]] friend constexpr Int128 operator^(Int128 a, Int128 b) noexcept { Int128 r; r.val_ = a.val_ ^ b.val_; return r; }
@@ -267,8 +278,8 @@ public:
     constexpr Int128& operator*=(Int128 o) noexcept { val_ *= o.val_; return *this; }
     constexpr Int128& operator/=(Int128 o) noexcept { assert(o); val_ /= o.val_; return *this; }
     constexpr Int128& operator%=(Int128 o) noexcept { assert(o); val_ %= o.val_; return *this; }
-    constexpr Int128& operator<<=(int bits) noexcept { val_ <<= bits; return *this; }
-    constexpr Int128& operator>>=(int bits) noexcept { val_ >>= bits; return *this; }
+    constexpr Int128& operator<<=(int bits) noexcept { *this = *this << bits; return *this; }
+    constexpr Int128& operator>>=(int bits) noexcept { *this = *this >> bits; return *this; }
     constexpr Int128& operator&=(Int128 o) noexcept { val_ &= o.val_; return *this; }
     constexpr Int128& operator|=(Int128 o) noexcept { val_ |= o.val_; return *this; }
     constexpr Int128& operator^=(Int128 o) noexcept { val_ ^= o.val_; return *this; }
@@ -334,9 +345,8 @@ public:
     [[nodiscard]] friend Int128 operator%(Int128 a, Int128 b) noexcept {
         assert(b);
         Uint128 ua = a.Abs(), ub = b.Abs();
-        Int128 r(ua % ub);
-        if (a.IsNegative()) r = Int128(ua % ub);  // sign follows dividend
-        return a.IsNegative() ? -r : r;
+        Uint128 rem = ua % ub;
+        return a.IsNegative() ? Int128(-rem) : Int128(rem);
     }
     [[nodiscard]] friend constexpr Int128 operator-(Int128 a) noexcept { return Int128(-a.u_); }
     [[nodiscard]] friend constexpr Int128 operator<<(Int128 a, int bits) noexcept { return Int128(a.u_ << bits); }

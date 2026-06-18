@@ -2,26 +2,20 @@
 #define ZETA_SYNCHRONIZATION_MUTEX_H
 
 /// @file   synchronization/mutex.h
-/// @brief  Mutex and reader-writer lock with deadlock-detection annotations.
+/// @brief  Mutex and reader-writer lock.
 ///
-/// `zeta::Mutex` wraps `std::mutex` with a richer API:
-///   - `Lock()` / `Unlock()` / `TryLock()` — exclusive locking
-///   - `ReaderLock()` / `ReaderUnlock()` — shared (read) locking
-///   - `WriterLock()` / `WriterUnlock()` — exclusive (write) locking
-///   - RAII helpers: `MutexLock`, `ReaderMutexLock`, `WriterMutexLock`
-///
-/// Reader-writer locking uses `std::shared_mutex` under the hood.  The
-/// implementation is safe and cross-platform (no custom futex code).
+/// `zeta::Mutex` wraps `std::shared_mutex` — all locking methods
+/// (exclusive, shared, reader, writer) operate on the same underlying
+/// synchronisation object, guaranteeing proper mutual exclusion.
 ///
 /// Example:
 ///   zeta::Mutex mu;
 ///   {
 ///       zeta::MutexLock lock(&mu);
-///       // critical section
+///       // exclusive critical section
 ///   }
 
 #include <cassert>
-#include <mutex>
 #include <shared_mutex>
 
 namespace zeta {
@@ -46,24 +40,22 @@ public:
 
     // ── Reader (shared) lock ────────────────────────────────────────
 
-    void ReaderLock()       { shared_.lock_shared(); }
-    void ReaderUnlock()     { shared_.unlock_shared(); }
-    bool ReaderTryLock()    { return shared_.try_lock_shared(); }
+    void ReaderLock()       { mu_.lock_shared(); }
+    void ReaderUnlock()     { mu_.unlock_shared(); }
+    bool ReaderTryLock()    { return mu_.try_lock_shared(); }
 
-    // ── Writer (exclusive via shared_mutex) lock ────────────────────
+    // ── Writer (exclusive) lock ─────────────────────────────────────
 
-    void WriterLock()       { shared_.lock(); }
-    void WriterUnlock()     { shared_.unlock(); }
-    bool WriterTryLock()    { return shared_.try_lock(); }
+    void WriterLock()       { mu_.lock(); }
+    void WriterUnlock()     { mu_.unlock(); }
+    bool WriterTryLock()    { return mu_.try_lock(); }
 
-    // ── Low-level access (for condition variables) ──────────────────
+    // ── Low-level access ────────────────────────────────────────────
 
-    std::mutex& native_handle()       noexcept { return mu_; }
-    std::shared_mutex& shared_handle() noexcept { return shared_; }
+    std::shared_mutex& native_handle() noexcept { return mu_; }
 
 private:
-    std::mutex        mu_;
-    std::shared_mutex shared_;
+    std::shared_mutex mu_;
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -96,7 +88,7 @@ private:
     Mutex* mu_;
 };
 
-/// Writer (exclusive via shared_mutex) lock guard.
+/// Writer (exclusive) lock guard.
 class WriterMutexLock {
 public:
     explicit WriterMutexLock(Mutex* mu) : mu_(mu) { mu_->WriterLock(); }

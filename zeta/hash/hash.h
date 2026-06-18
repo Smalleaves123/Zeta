@@ -34,6 +34,8 @@
 #include <type_traits>
 #include <utility>
 
+#include "zeta/bits/bit_ops.h"
+
 namespace zeta {
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -49,13 +51,9 @@ constexpr uint64_t kPrime3 = 0x165667B19E3779F9ULL;
 constexpr uint64_t kPrime4 = 0x85EBCA77C2B2AE63ULL;
 constexpr uint64_t kPrime5 = 0x27D4EB2F165667C5ULL;
 
-[[nodiscard]] inline uint64_t Rotl64(uint64_t x, int r) noexcept {
-    return (x << r) | (x >> (64 - r));
-}
-
 [[nodiscard]] inline uint64_t MixRound(uint64_t acc, uint64_t lane) noexcept {
     acc += lane * kPrime2;
-    acc = Rotl64(acc, 31);
+    acc = zeta::rotl(acc, 31);
     acc *= kPrime1;
     return acc;
 }
@@ -79,12 +77,7 @@ class HashState {
 public:
     /// Start with a seed.
     explicit HashState(uint64_t seed = 0) noexcept
-        : acc_(seed + hash_internal::kPrime5), len_(0) {
-        buf_[0] = 0;  // zero the 32-byte buffer
-        buf_[1] = 0;
-        buf_[2] = 0;
-        buf_[3] = 0;
-    }
+        : acc_(seed + hash_internal::kPrime5), len_(0), buf_{} {}
 
     /// Feed a block of bytes into the hash.
     void Feed(const void* data, size_t size) noexcept {
@@ -105,9 +98,11 @@ public:
             }
         }
 
-        // Process full 32-byte stripes.
+        // Process full 32-byte stripes (use memcpy to avoid
+        // unaligned-access UB on strict-alignment platforms).
         while (remaining >= 32) {
-            const uint64_t* stripe = reinterpret_cast<const uint64_t*>(p);
+            uint64_t stripe[4];
+            std::memcpy(stripe, p, sizeof(stripe));
             accumulate(stripe);
             p += 32;
             remaining -= 32;
@@ -136,7 +131,7 @@ public:
             uint64_t lane;
             std::memcpy(&lane, p, 8);
             h ^= hash_internal::MixRound(0, lane);
-            h = hash_internal::Rotl64(h, 27) * hash_internal::kPrime1 + hash_internal::kPrime4;
+            h = zeta::rotl(h, 27) * hash_internal::kPrime1 + hash_internal::kPrime4;
             p += 8;
             remaining -= 8;
         }
@@ -146,7 +141,7 @@ public:
             uint32_t lane;
             std::memcpy(&lane, p, 4);
             h ^= static_cast<uint64_t>(lane) * hash_internal::kPrime1;
-            h = hash_internal::Rotl64(h, 23) * hash_internal::kPrime2 + hash_internal::kPrime3;
+            h = zeta::rotl(h, 23) * hash_internal::kPrime2 + hash_internal::kPrime3;
             p += 4;
             remaining -= 4;
         }
@@ -154,7 +149,7 @@ public:
         // Remaining bytes (1-3)
         while (remaining > 0) {
             h ^= static_cast<uint64_t>(*p) * hash_internal::kPrime5;
-            h = hash_internal::Rotl64(h, 11) * hash_internal::kPrime1;
+            h = zeta::rotl(h, 11) * hash_internal::kPrime1;
             ++p;
             --remaining;
         }
@@ -188,14 +183,14 @@ private:
         uint64_t v2 = acc_ + stripe[1] * hash_internal::kPrime2;
         uint64_t v3 = acc_ + stripe[2] * hash_internal::kPrime2;
         uint64_t v4 = acc_ + stripe[3] * hash_internal::kPrime2;
-        v1 = hash_internal::Rotl64(v1, 31) * hash_internal::kPrime1;
-        v2 = hash_internal::Rotl64(v2, 31) * hash_internal::kPrime1;
-        v3 = hash_internal::Rotl64(v3, 31) * hash_internal::kPrime1;
-        v4 = hash_internal::Rotl64(v4, 31) * hash_internal::kPrime1;
-        acc_ = hash_internal::Rotl64(v1, 1) +
-               hash_internal::Rotl64(v2, 7) +
-               hash_internal::Rotl64(v3, 12) +
-               hash_internal::Rotl64(v4, 18);
+        v1 = zeta::rotl(v1, 31) * hash_internal::kPrime1;
+        v2 = zeta::rotl(v2, 31) * hash_internal::kPrime1;
+        v3 = zeta::rotl(v3, 31) * hash_internal::kPrime1;
+        v4 = zeta::rotl(v4, 31) * hash_internal::kPrime1;
+        acc_ = zeta::rotl(v1, 1) +
+               zeta::rotl(v2, 7) +
+               zeta::rotl(v3, 12) +
+               zeta::rotl(v4, 18);
     }
 
     template <typename T>
@@ -217,7 +212,7 @@ private:
                 return;
             }
             v = hash_internal::MixRound(0, v);
-            v = hash_internal::Rotl64(v, 27) * hash_internal::kPrime1 + hash_internal::kPrime4;
+            v = zeta::rotl(v, 27) * hash_internal::kPrime1 + hash_internal::kPrime4;
             // Mix into accumulator state.
             uint64_t stripe[4] = {v, 0, 0, 0};
             accumulate(stripe);

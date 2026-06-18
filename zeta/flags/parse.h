@@ -50,23 +50,17 @@ inline std::vector<std::string_view> ParseCommandLine(int argc, char** argv) {
         }
         // arg starts with "--"
 
-        // ── --no<flag> (negate bool) ────────────────────────────────
-        bool negate = false;
-        std::string_view name = arg.substr(2);
-        if (name.size() > 2 && name.substr(0, 2) == "no") {
-            negate = true;
-            name = name.substr(2);
-        }
-
         // ── Parse --flag=value or bare --flag ───────────────────────
+        std::string_view name = arg.substr(2);
         std::string_view value;
         size_t eq = name.find('=');
         if (eq != std::string_view::npos) {
             value = name.substr(eq + 1);
             name  = name.substr(0, eq);
-        } else if (negate) {
-            value = "false";
         } else {
+            // Bare --flag (no '=') → "true".  The flag's Parse()
+            // determines whether that's valid for its type.
+            // Use --flag=false to explicitly set false.
             value = "true";
         }
 

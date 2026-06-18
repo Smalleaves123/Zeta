@@ -133,7 +133,11 @@ public:
         return *this;
     }
     constexpr Duration& operator-=(Duration rhs) noexcept {
-        *this = add_sat(ns_, -rhs.ns_);
+        // Guard against -INT64_MIN overflow (handled correctly in unary operator-).
+        if (rhs.ns_ == std::numeric_limits<int64_t>::min())
+            *this = add_sat(ns_, std::numeric_limits<int64_t>::max());
+        else
+            *this = add_sat(ns_, -rhs.ns_);
         return *this;
     }
     constexpr Duration& operator*=(int64_t factor) noexcept {
@@ -214,14 +218,26 @@ public:
     }
 
 private:
-    // Saturating signed multiply by a positive scale factor.
+    // Saturating signed multiply by a scale factor.
+    // If scale is negative, negate both arguments so the overflow check
+    // always operates with a positive scale (the product is the same).
     [[nodiscard]] static constexpr Duration multiply_check(int64_t v,
                                                             int64_t scale) noexcept {
         constexpr auto kMax = std::numeric_limits<int64_t>::max();
         constexpr auto kMin = std::numeric_limits<int64_t>::min();
-        // Quick path: if scale is 1, no overflow possible.
+        if (v == 0 || scale == 0) return Duration(0, 0);
+        // Normalise sign: keep scale positive, flip v if needed.
+        if (scale < 0) {
+            // Guard -INT64_MIN overflow in v = -v.
+            if (v == kMin) {
+                // v = kMin, scale < 0 → product = -kMin * scale
+                // -kMin overflows to kMin again; result infinites.
+                return (scale == -1) ? Infinite() : NegativeInfinite();
+            }
+            v = -v;
+            scale = -scale;
+        }
         if (scale == 1) return Duration(v, 0);
-        // Check overflow/saturation.
         if (v > 0) {
             if (v > kMax / scale) return Infinite();
         } else if (v < 0) {
