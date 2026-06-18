@@ -518,30 +518,53 @@ private:
         new_capacity = next_power_of_2(new_capacity);
         if (new_capacity <= capacity_) return;
 
-        int8_t*     old_ctrl    = ctrl_;
-        value_type* old_slots   = slots_;
+        int8_t*     old_ctrl     = ctrl_;
+        value_type* old_slots    = slots_;
         size_t      old_capacity = capacity_;
+        size_t      old_size     = size_;
 
-        ctrl_ = static_cast<int8_t*>(
+        int8_t* new_ctrl = static_cast<int8_t*>(
             ::operator new(sizeof(int8_t) * (new_capacity + kGroupWidth + 1)));
-        slots_ = static_cast<value_type*>(
+        value_type* new_slots = static_cast<value_type*>(
             ::operator new(sizeof(value_type) * new_capacity));
+
+        // Assign to members so prepare_insert sees new layout.
+        ctrl_ = new_ctrl;
+        slots_ = new_slots;
         capacity_ = new_capacity;
         size_ = 0;
 
         std::memset(ctrl_, kEmpty, new_capacity + kGroupWidth + 1);
 
         if (old_slots) {
-            for (size_t i = 0; i < old_capacity; ++i) {
-                if (old_ctrl[i] != kEmpty && old_ctrl[i] != kDeleted) {
-                    value_type* src = old_slots + i;
-                    size_t hv = hash_(Policy::get_key(*src));
-                    size_t pos = prepare_insert(hv);
-                    ::new (slots_ + pos) value_type(std::move(*src));
-                    set_ctrl(pos, static_cast<int8_t>(H2(hv)));
-                    ++size_;
-                    src->~value_type();
+            size_t moved = 0;
+            try {
+                for (size_t i = 0; i < old_capacity; ++i) {
+                    if (old_ctrl[i] != kEmpty && old_ctrl[i] != kDeleted) {
+                        value_type* src = old_slots + i;
+                        size_t hv = hash_(Policy::get_key(*src));
+                        size_t pos = prepare_insert(hv);
+                        ::new (slots_ + pos) value_type(std::move(*src));
+                        set_ctrl(pos, static_cast<int8_t>(H2(hv)));
+                        ++size_;
+                        ++moved;
+                        src->~value_type();
+                    }
                 }
+            } catch (...) {
+                // Destroy elements already moved into new storage.
+                for (size_t j = 0; j < capacity_; ++j) {
+                    if (ctrl_[j] != kEmpty && ctrl_[j] != kDeleted)
+                        slots_[j].~value_type();
+                }
+                ::operator delete(new_slots);
+                ::operator delete(new_ctrl);
+                // Restore old state.
+                ctrl_     = old_ctrl;
+                slots_    = old_slots;
+                capacity_ = old_capacity;
+                size_     = old_size;
+                throw;
             }
             ::operator delete(old_slots);
             ::operator delete(old_ctrl);

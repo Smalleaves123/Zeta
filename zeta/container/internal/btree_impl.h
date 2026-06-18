@@ -62,6 +62,7 @@ public:
         pointer   operator->() const noexcept { return &node_->values[pos_]; }
 
         iterator& operator++() noexcept {
+            if (!node_) return *this;  // end() → stay end()
             if (!node_->is_leaf()) {
                 // Descend into leftmost leaf of right child.
                 Node* child = node_->children[pos_ + 1].get();
@@ -70,7 +71,7 @@ public:
                 pos_ = 0;
             } else {
                 ++pos_;
-                // Ascend past node boundaries.
+                // Ascend past node boundaries, skipping empty nodes.
                 while (node_ && pos_ >= static_cast<int>(node_->values.size())) {
                     Node* p = node_->parent;
                     if (!p) { node_ = nullptr; pos_ = 0; break; }
@@ -205,11 +206,10 @@ public:
             return {iterator(node, 0), true};  // should not reach
         }
 
-        // Node is full — split.
+        // Node is full — insert then split in one operation.
         insert_into_node(node, std::move(v));
-        auto median = extract_median(node);
-        auto right = split_right(node);
-
+        value_type median;
+        auto right = split_full_node(node, median);
         insert_into_parent(node, std::move(median), std::move(right));
         ++size_;
         return {find(k), true};
@@ -243,8 +243,53 @@ public:
 
     [[nodiscard]] iterator begin() const {
         Node* node = root_.get();
-        while (node && !node->is_leaf() && !node->values.empty())
-            node = node->children[0].get();
+        if (!node || size_ == 0) return end();
+
+        // Descend leftmost.  Skip empty internal nodes (can appear after
+        // erase on a node whose only value was the promoted median).
+        while (node && !node->is_leaf()) {
+            if (node->children.empty()) return end();
+            // Skip past empty internal nodes whose left child vanished.
+            size_t child_idx = 0;
+            while (child_idx < node->children.size() &&
+                   !node->children[child_idx]) ++child_idx;
+            if (child_idx >= node->children.size()) return end();
+            node = node->children[child_idx].get();
+        }
+
+        // We are at a leaf.  If it is empty, walk right among siblings.
+        while (node && node->values.empty()) {
+            // Find parent and index.
+            Node* p = node->parent;
+            if (!p) return end();
+            int idx = index_in_parent(node);
+            // Try next sibling.
+            if (idx + 1 < static_cast<int>(p->children.size())) {
+                node = p->children[idx + 1].get();
+                while (node && !node->is_leaf()) {
+                    if (!node->children.empty()) node = node->children[0].get();
+                    else return end();
+                }
+            } else {
+                // No more siblings — ascend.
+                node = p;
+                while (node && node->values.empty()) {
+                    p = node->parent;
+                    if (!p) return end();
+                    idx = index_in_parent(node);
+                    if (idx + 1 < static_cast<int>(p->children.size())) {
+                        node = p->children[idx + 1].get();
+                        while (node && !node->is_leaf()) {
+                            if (!node->children.empty()) node = node->children[0].get();
+                            else return end();
+                        }
+                        break;
+                    }
+                    node = p;
+                }
+            }
+        }
+
         if (node && !node->values.empty()) return iterator(node, 0);
         return end();
     }
@@ -277,31 +322,39 @@ private:
         node->values.insert(it, std::move(v));
     }
 
-    // Extract median from a full node (keeps left half, returns median).
-    static value_type extract_median(Node* node) {
-        size_t mid = node->values.size() / 2;
-        value_type v = std::move(node->values[mid]);
-        node->values.erase(node->values.begin() + mid);
-        return v;
-    }
-
-    // Split a node: move right half to a new node, return it.
-    static std::unique_ptr<Node> split_right(Node* left) {
+    /// Split a full node (values.size() == kCapacity + 1 after insert).
+    /// Returns the median value through the output parameter, and the new
+    /// right sibling as the return value.  The left node keeps the lower
+    /// half (including the preceding children for internal nodes).
+    static std::unique_ptr<Node> split_full_node(Node* left, value_type& median_out) {
         auto right = std::make_unique<Node>();
-        size_t mid = left->values.size() / 2;
         right->parent = left->parent;
+
+        const size_t total = left->values.size();  // kCapacity + 1
+        const size_t mid   = total / 2;            // median index
+
+        // Extract median.
+        median_out = std::move(left->values[mid]);
+
+        // Right half values: [mid+1 .. total-1].
         right->values.assign(
-            std::make_move_iterator(left->values.begin() + mid),
+            std::make_move_iterator(left->values.begin() + mid + 1),
             std::make_move_iterator(left->values.end()));
+
+        // Truncate left to [0 .. mid-1].
         left->values.erase(left->values.begin() + mid, left->values.end());
-        // Move children.
+
+        // Children: left had total+1 children, median separates them.
+        // Left keeps  children[0..mid], right gets children[mid+1..total].
         if (!left->is_leaf()) {
             right->children.assign(
                 std::make_move_iterator(left->children.begin() + mid + 1),
                 std::make_move_iterator(left->children.end()));
-            left->children.erase(left->children.begin() + mid + 1, left->children.end());
+            left->children.erase(left->children.begin() + mid + 1,
+                                 left->children.end());
             for (auto& c : right->children) c->parent = right.get();
         }
+
         return right;
     }
 
@@ -330,8 +383,8 @@ private:
         parent->children.insert(parent->children.begin() + pos + 1, std::move(right));
 
         if (parent->is_full()) {
-            auto med2 = extract_median(parent);
-            auto right2 = split_right(parent);
+            value_type med2;
+            auto right2 = split_full_node(parent, med2);
             insert_into_parent(parent, std::move(med2), std::move(right2));
         }
     }

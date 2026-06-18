@@ -176,7 +176,7 @@ public:
     /// Constructs from code + message.
     /// Accepts anything convertible to `std::string`.
     /// kOk code → OK status (message ignored).
-    Status(StatusCode code, std::string message) noexcept {
+    Status(StatusCode code, std::string message) noexcept(false) {
         if (code == StatusCode::kOk) {
             std::memset(raw_, 0, sizeof(raw_));
         } else if (message.size() <= kInlineMax) {
@@ -188,7 +188,7 @@ public:
 
     // ── Copy ─────────────────────────────────────────────────────
 
-    Status(const Status& other) noexcept {
+    Status(const Status& other) noexcept(false) {
         if (other.tag() == kTagHeap) {
             auto* rep = other.heap_ptr();
             set_heap(new HeapRep(rep->code, rep->message));
@@ -197,7 +197,7 @@ public:
         }
     }
 
-    Status& operator=(const Status& other) noexcept {
+    Status& operator=(const Status& other) noexcept(false) {
         if (this != &other) {
             destroy();
             if (other.tag() == kTagHeap) {

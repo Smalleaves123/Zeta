@@ -19,6 +19,7 @@
 ///   for (auto p : StrSplit("x, y, z", ByAnyChar{", "}, SkipEmpty)) { ... }
 
 #include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <limits>
 #include <string_view>

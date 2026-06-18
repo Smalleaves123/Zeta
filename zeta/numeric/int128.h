@@ -19,11 +19,8 @@
 ///           `zeta/hash/hash.h`.
 
 #include <cassert>
-#include <climits>
 #include <cstdint>
 #include <limits>
-#include <string>
-#include <type_traits>
 #include <utility>
 
 // ── Platform detection ─────────────────────────────────────────────────

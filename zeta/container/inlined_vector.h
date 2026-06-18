@@ -50,25 +50,37 @@ class InlinedVector {
     void alloc_heap(size_t new_cap) {
         T* new_data = static_cast<T*>(
             ::operator new(sizeof(T) * new_cap));
-        // Move elements from old storage (inline or heap) to new heap
         size_t n = size_;
-        for (size_t i = 0; i < n; ++i) {
-            ::new (new_data + i) T(std::move(data_[i]));
-            data_[i].~T();
+        size_t i = 0;
+        try {
+            for (; i < n; ++i) {
+                ::new (new_data + i) T(std::move(data_[i]));
+            }
+        } catch (...) {
+            // Destroy successfully moved elements in new storage.
+            for (size_t j = 0; j < i; ++j) new_data[j].~T();
+            ::operator delete(new_data);
+            throw;
         }
+        // All moves succeeded — destroy old elements and swap.
+        for (i = 0; i < n; ++i) data_[i].~T();
         if (!is_inline()) ::operator delete(data_);
         data_ = new_data;
         capacity_ = new_cap;
     }
 
     void grow() {
-        size_t new_cap = capacity_ * 2;
+        size_t new_cap = (capacity_ > std::numeric_limits<size_t>::max() / 2)
+                             ? std::numeric_limits<size_t>::max()
+                             : capacity_ * 2;
         if (new_cap < 4) new_cap = 4;
         alloc_heap(new_cap);
     }
 
     void grow_to(size_t required) {
-        size_t new_cap = capacity_ * 2;
+        size_t new_cap = (capacity_ > std::numeric_limits<size_t>::max() / 2)
+                             ? std::numeric_limits<size_t>::max()
+                             : capacity_ * 2;
         if (new_cap < required) new_cap = required;
         alloc_heap(new_cap);
     }
@@ -125,7 +137,8 @@ public:
         return *this;
     }
 
-    InlinedVector(InlinedVector&& other) noexcept {
+    InlinedVector(InlinedVector&& other)
+        noexcept(std::is_nothrow_move_constructible_v<T>) {
         if (other.is_inline()) {
             // Move inline elements one by one
             for (size_t i = 0; i < other.size_; ++i)
@@ -143,7 +156,8 @@ public:
         }
     }
 
-    InlinedVector& operator=(InlinedVector&& other) noexcept {
+    InlinedVector& operator=(InlinedVector&& other)
+        noexcept(std::is_nothrow_move_constructible_v<T>) {
         if (this != &other) {
             clear();
             if (!is_inline()) ::operator delete(data_);
@@ -180,14 +194,22 @@ public:
     void shrink_to_fit() {
         if (is_inline()) return;
         if (size_ <= N) {
-            // Move back to inline
+            // Move back to inline.  Build into inline first, then
+            // destroy old heap data — if a move throws, the heap
+            // buffer is still intact and the destructor will free it.
             T* old_data = data_;
-            data_ = inline_ptr();
-            for (size_t i = 0; i < size_; ++i) {
-                ::new (data_ + i) T(std::move(old_data[i]));
-                old_data[i].~T();
+            size_t i = 0;
+            try {
+                for (; i < size_; ++i) {
+                    ::new (inline_ptr() + i) T(std::move(old_data[i]));
+                }
+            } catch (...) {
+                for (size_t j = 0; j < i; ++j) inline_ptr()[j].~T();
+                throw;
             }
+            for (i = 0; i < size_; ++i) old_data[i].~T();
             ::operator delete(old_data);
+            data_ = inline_ptr();
             capacity_ = N;
         } else {
             // Reallocate to exact size
@@ -348,15 +370,20 @@ public:
             swap(size_, other.size_);
             return;
         }
-        // If one is heap, swap pointers
+        // One or both are heap — swap metadata first.
         swap(data_,     other.data_);
         swap(size_,     other.size_);
         swap(capacity_, other.capacity_);
-        // Swap inline buffers
+        // Swap inline buffer contents.
         char tmp[sizeof(T) * N];
         std::memcpy(tmp, inline_buf_, sizeof(inline_buf_));
         std::memcpy(inline_buf_, other.inline_buf_, sizeof(other.inline_buf_));
         std::memcpy(other.inline_buf_, tmp, sizeof(tmp));
+        // Fix data_ pointers: after inline_buf_ memcpy, any side that
+        // is now inline must point to its OWN inline buffer (the old
+        // data_ pointer referenced the other object's memory).
+        if (capacity_ == N) data_ = inline_ptr();
+        if (other.capacity_ == N) other.data_ = other.inline_ptr();
     }
 
     friend void swap(InlinedVector& a, InlinedVector& b) noexcept { a.swap(b); }
