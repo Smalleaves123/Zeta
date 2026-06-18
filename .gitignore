@@ -1,8 +1,7 @@
 # Build directories
 build/
 cmake-build-*/
-.clang-format
-.clang-tidy
+
 # Claude Code
 .claude/
 

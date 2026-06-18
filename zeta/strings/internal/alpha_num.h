@@ -13,13 +13,14 @@
 #include <cstddef>
 #include <charconv>
 #include <string_view>
+#include <system_error>
 
 namespace zeta {
 namespace strings_internal {
 
 class AlphaNum {
 public:
-    static constexpr size_t kBufSize = 32;
+    static constexpr size_t kBufSize = 64;
 
     // -- string-like ------------------------------------------------
     AlphaNum(const char* s) noexcept : piece_(s) {}
@@ -58,19 +59,31 @@ private:
 
     template <typename T>
     void from_int(T n) {
-        auto [ptr, _] = std::to_chars(buf_, buf_ + kBufSize, n);
-        piece_ = std::string_view(buf_, ptr - buf_);
+        auto [ptr, ec] = std::to_chars(buf_, buf_ + kBufSize, n);
+        if (ec == std::errc{}) {
+            piece_ = std::string_view(buf_, ptr - buf_);
+        } else {
+            piece_ = std::string_view(buf_, 0); // buffer exhausted
+        }
     }
 
     template <typename T>
     void from_uint(T n) {
-        auto [ptr, _] = std::to_chars(buf_, buf_ + kBufSize, n);
-        piece_ = std::string_view(buf_, ptr - buf_);
+        auto [ptr, ec] = std::to_chars(buf_, buf_ + kBufSize, n);
+        if (ec == std::errc{}) {
+            piece_ = std::string_view(buf_, ptr - buf_);
+        } else {
+            piece_ = std::string_view(buf_, 0); // buffer exhausted
+        }
     }
 
     void from_double(double n) {
-        auto [ptr, _] = std::to_chars(buf_, buf_ + kBufSize, n);
-        piece_ = std::string_view(buf_, ptr - buf_);
+        auto [ptr, ec] = std::to_chars(buf_, buf_ + kBufSize, n);
+        if (ec == std::errc{}) {
+            piece_ = std::string_view(buf_, ptr - buf_);
+        } else {
+            piece_ = std::string_view(buf_, 0); // buffer exhausted
+        }
     }
 };
 

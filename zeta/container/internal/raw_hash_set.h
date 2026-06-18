@@ -27,7 +27,7 @@
 #include "zeta/bits/bit_ops.h"
 
 // ── SIMD backend selection ─────────────────────────────────────────
-#if defined(__ARM_NEON) || defined(__aarch64__)
+#if defined(__ARM_NEON) || defined(__ARM_NEON__) || defined(__aarch64__)
   #include <arm_neon.h>
   #define ZETA_NEON 1
 #elif defined(__SSE2__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 2)
@@ -105,16 +105,8 @@ inline uint32_t MatchEmptyOrDeleted(const int8_t* ctrl) noexcept {
 }
 
 inline size_t LowestBitSet(uint32_t mask) noexcept {
-    return static_cast<size_t>(__builtin_ctz(mask));
+    return static_cast<size_t>(zeta::countr_zero(mask));
 }
-
-// ── Transparent hash / equal detection ────────────────────────────
-template <typename, typename = void>
-struct is_transparent : std::false_type {};
-
-template <typename T>
-struct is_transparent<T, std::void_t<typename T::is_transparent>>
-    : std::true_type {};
 
 // ── Policy helpers ─────────────────────────────────────────────────
 template <typename K, typename V>
@@ -365,7 +357,8 @@ public:
             return {iterator_at(idx), false};
         }
         value_type v(std::move(key), std::forward<M>(obj));
-        return emplace_new(key, hash_val, std::move(v));
+        const key_type& k = Policy::get_key(v);
+        return emplace_new(k, hash_val, std::move(v));
     }
 
     // ── Emplace (general) ─────────────────────────────────────────

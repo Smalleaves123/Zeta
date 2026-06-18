@@ -30,11 +30,6 @@
 
 namespace zeta {
 
-namespace status_internal {
-
-// ── Trivial "empty" type for the union inactive member ───────────────
-} // namespace status_internal
-
 // ── StatusOr<T> ──────────────────────────────────────────────────────
 
 /// Holds either a `T` (success) or a `Status` (error).

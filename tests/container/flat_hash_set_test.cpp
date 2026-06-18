@@ -47,15 +47,6 @@ TEST_CASE("raw_hash_set: next_power_of_2", "[raw_hash_set][internal]") {
     REQUIRE(s.capacity() >= 16);
 }
 
-TEST_CASE("raw_hash_set: is_transparent trait", "[raw_hash_set][internal]") {
-    struct Transparent { using is_transparent = void; };
-    struct Opaque {};
-
-    static_assert(ci::is_transparent<Transparent>::value);
-    static_assert(!ci::is_transparent<Opaque>::value);
-    static_assert(!ci::is_transparent<int>::value);
-}
-
 TEST_CASE("raw_hash_set: MapPolicy key extraction", "[raw_hash_set][internal]") {
     using MP = ci::MapPolicy<int, std::string>;
     std::pair<const int, std::string> p = {42, "hello"};
