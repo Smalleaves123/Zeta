@@ -1,0 +1,3 @@
+zeta_test(synchronization_mutex_test)
+zeta_test(synchronization_notification_test)
+zeta_test(synchronization_once_test)

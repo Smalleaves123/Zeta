@@ -1,3 +1,5 @@
 zeta_test(flat_hash_map_test)
 zeta_test(flat_hash_set_test)
 zeta_test(inlined_vector_test)
+zeta_test(btree_map_test)
+zeta_test(node_hash_map_test)

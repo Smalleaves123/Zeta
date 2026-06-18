@@ -11,14 +11,23 @@ add_subdirectory(bits)
 # ── cleanup/ ───────────────────────────────────────────────────────
 add_subdirectory(cleanup)
 
+# ── flags/ ──────────────────────────────────────────────────────────
+add_subdirectory(flags)
+
 # ── hash/ ──────────────────────────────────────────────────────────
 add_subdirectory(hash)
+
+# ── log/ ────────────────────────────────────────────────────────────
+add_subdirectory(log)
 
 # ── meta/ ──────────────────────────────────────────────────────────
 add_subdirectory(meta)
 
 # ── numeric/ ───────────────────────────────────────────────────────
 add_subdirectory(numeric)
+
+# ── synchronization/ ───────────────────────────────────────────────
+add_subdirectory(synchronization)
 
 # ── time/ ──────────────────────────────────────────────────────────
 add_subdirectory(time)
