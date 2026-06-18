@@ -3,10 +3,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include <cstring>
 #include <string>
 
-// Register test flags (static init)
+// Register test flags (static init — registered via ZETA_FLAG macro)
 ZETA_FLAG(int32, test_port, 8080, "Test port number");
 ZETA_FLAG(bool, test_verbose, false, "Enable verbose mode");
 ZETA_FLAG(string, test_name, "default", "Test name");
@@ -57,22 +56,19 @@ TEST_CASE("flags: Parse string", "[flags]") {
 }
 
 TEST_CASE("flags: ParseCommandLine with known flags", "[flags]") {
-    // Simulate argv.
-    const char* argv_data[] = {
-        "program",
-        "--test_port=9090",
-        "--test_verbose",
-        "positional_arg"
-    };
+    char arg0[] = "program";
+    char arg1[] = "--test_port=9090";
+    char arg2[] = "--test_verbose";
+    char arg3[] = "positional_arg";
+    char* argv[] = {arg0, arg1, arg2, arg3};
     int argc = 4;
-    char** argv = const_cast<char**>(argv_data);
 
-    zeta::ParseCommandLine(argc, argv);
+    auto rest = zeta::ParseCommandLine(argc, argv);
 
     REQUIRE(FLAGS_test_port.Get() == 9090);
     REQUIRE(FLAGS_test_verbose.Get() == true);
-    REQUIRE(argc == 2);  // program + positional_arg
-    REQUIRE(std::strcmp(argv[1], "positional_arg") == 0);
+    REQUIRE(rest.size() == 1);
+    REQUIRE(rest[0] == "positional_arg");
 
     // Restore defaults.
     FLAGS_test_port.Set(8080);

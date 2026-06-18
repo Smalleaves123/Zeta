@@ -29,9 +29,12 @@ namespace zeta {
 template <typename T>
 class Flag : public flags_internal::FlagEntry {
 public:
-    Flag(const char* name, const char* help, const char* filename, T def)
+    /// @param register_global  If true, self-register into the global
+    ///   registry (for ZETA_FLAG macros).  Pass false for local flags.
+    Flag(const char* name, const char* help, const char* filename, T def,
+         bool register_global = false)
         : FlagEntry(name, help, filename), value_(def), default_(def) {
-        Register();  // safe: called after base and members are constructed
+        if (register_global) Register();
     }
 
     [[nodiscard]] const T& Get()      const noexcept { return value_; }
@@ -106,7 +109,7 @@ private:
 /// Supported types: bool, int32, int64, uint32, uint64, double, string.
 #define ZETA_FLAG(type, name, default_value, help_text)                 \
     static ::zeta::Flag<::zeta::internal::FlagType_##type>              \
-        FLAGS_##name(#name, help_text, __FILE__, (default_value))
+        FLAGS_##name(#name, help_text, __FILE__, (default_value), true)
 
 namespace zeta {
 namespace internal {
