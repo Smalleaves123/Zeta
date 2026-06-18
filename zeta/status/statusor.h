@@ -96,9 +96,10 @@ public:
         construct_value(std::move(value));
     }
 
-    /// Implicit construction from a Status — the error path.
-    /// NOLINTNEXTLINE
-    StatusOr(Status status) noexcept
+    /// Construction from a Status — the error path.
+    /// Explicit to prevent accidental `StatusOr<T> = OkStatus()` which
+    /// would create a StatusOr with ok()==true but no value (UB on access).
+    explicit StatusOr(Status status) noexcept
         : status_(std::move(status)) {}
 
     // ── Copy (only valid if T is copyable) ───────────────────────
@@ -135,11 +136,18 @@ public:
         noexcept(std::is_nothrow_move_constructible_v<T> &&
                  std::is_nothrow_move_assignable_v<T>) {
         if (this != &other) {
-            destroy_value();
-            status_ = std::move(other.status_);
+            // Strong exception guarantee: only commit after construction
+            // succeeds.  Construct into a local first (or on the stack),
+            // then swap the state.
             if (other.has_value_) {
-                construct_value(std::move(*other.value_ptr()));
+                T tmp(std::move(*other.value_ptr()));  // may throw
+                destroy_value();
+                status_ = std::move(other.status_);
+                construct_value(std::move(tmp));
                 other.destroy_value();
+            } else {
+                destroy_value();
+                status_ = std::move(other.status_);
             }
         }
         return *this;
@@ -175,9 +183,11 @@ public:
     }
 
     /// @pre ok() == true
+    /// After this call the StatusOr is in a moved-from state — do not
+    /// call ok() or value() again.  The destructor still runs and
+    /// properly cleans up the moved-from value.
     [[nodiscard]] T&& value() && {
         assert(ok());
-        has_value_ = false;
         return std::move(*value_ptr());
     }
 
@@ -220,8 +230,8 @@ public:
     /// Constructs an OK status (success, no value).
     StatusOr() noexcept : status_(OkStatus()) {}
 
-    /// Implicit construction from a Status — the error path.
-    StatusOr(Status status) noexcept : status_(std::move(status)) {} // NOLINT
+    /// Construction from a Status — the error path.
+    explicit StatusOr(Status status) noexcept : status_(std::move(status)) {}
 
     // ── Copy / Move ─────────────────────────────────────────────
 

@@ -133,11 +133,13 @@ public:
         return *this;
     }
     constexpr Duration& operator-=(Duration rhs) noexcept {
-        // Guard against -INT64_MIN overflow (handled correctly in unary operator-).
-        if (rhs.ns_ == std::numeric_limits<int64_t>::min())
+        // -INT64_MIN = INT64_MAX + 1 — add one extra to avoid off-by-one.
+        if (rhs.ns_ == std::numeric_limits<int64_t>::min()) {
             *this = add_sat(ns_, std::numeric_limits<int64_t>::max());
-        else
+            if (ns_ < std::numeric_limits<int64_t>::max()) ++ns_;
+        } else {
             *this = add_sat(ns_, -rhs.ns_);
+        }
         return *this;
     }
     constexpr Duration& operator*=(int64_t factor) noexcept {
@@ -230,9 +232,10 @@ private:
         if (scale < 0) {
             // Guard -INT64_MIN overflow in v = -v.
             if (v == kMin) {
-                // v = kMin, scale < 0 → product = -kMin * scale
-                // -kMin overflows to kMin again; result infinites.
-                return (scale == -1) ? Infinite() : NegativeInfinite();
+                // v = kMin, scale < 0 → product = (-kMin) * (-scale) > 0.
+                // Since |v| ≥ 2^63 and |scale| ≥ 1, product always
+                // exceeds INT64_MAX, saturating to Infinity.
+                return Infinite();
             }
             v = -v;
             scale = -scale;

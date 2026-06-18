@@ -173,7 +173,7 @@ TEST_CASE("StatusOr: copy assignment", "[statusor][copy]") {
 // ═══════════════════════════════════════════════════════════════════
 
 static zeta::StatusOr<int> may_fail(bool fail) {
-    if (fail) return zeta::InvalidArgumentError("simulated failure");
+    if (fail) return zeta::StatusOr<int>(zeta::InvalidArgumentError("simulated failure"));
     return 42;
 }
 
@@ -247,7 +247,7 @@ TEST_CASE("StatusOr: CTAD from string", "[statusor][ctad]") {
 // ═══════════════════════════════════════════════════════════════════
 
 static zeta::StatusOr<void> void_ok() { return {}; }
-static zeta::StatusOr<void> void_err() { return zeta::NotFoundError("gone"); }
+static zeta::StatusOr<void> void_err() { return zeta::StatusOr<void>(zeta::NotFoundError("gone")); }
 
 TEST_CASE("StatusOr<void>: default constructs as OK", "[statusor][void]") {
     zeta::StatusOr<void> r;

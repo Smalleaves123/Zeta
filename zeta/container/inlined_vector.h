@@ -296,31 +296,42 @@ public:
     iterator emplace(const_iterator pos, Args&&... args) {
         size_t idx = static_cast<size_t>(pos - data_);
         if (size_ >= capacity_) {
-            size_t new_cap = capacity_ * 2;
+            size_t new_cap = (capacity_ > std::numeric_limits<size_t>::max() / 2)
+                                 ? std::numeric_limits<size_t>::max()
+                                 : capacity_ * 2;
             if (new_cap < 4) new_cap = 4;
             T* new_data = static_cast<T*>(::operator new(sizeof(T) * new_cap));
-            // Copy elements before idx
-            for (size_t i = 0; i < idx; ++i) {
-                ::new (new_data + i) T(std::move(data_[i]));
-                data_[i].~T();
+            size_t i = 0;
+            try {
+                // Build elements before idx.
+                for (; i < idx; ++i)
+                    ::new (new_data + i) T(std::move(data_[i]));
+                // Construct new element.
+                ::new (new_data + idx) T(std::forward<Args>(args)...);
+                // Build elements after idx.
+                for (i = idx; i < size_; ++i)
+                    ::new (new_data + i + 1) T(std::move(data_[i]));
+            } catch (...) {
+                for (size_t j = 0; j < i && j < idx; ++j)
+                    new_data[j].~T();
+                // If we got past the new element, destroy it too.
+                if (i >= idx) new_data[idx].~T();
+                ::operator delete(new_data);
+                throw;
             }
-            // Construct new element
-            ::new (new_data + idx) T(std::forward<Args>(args)...);
-            // Copy elements after idx
-            for (size_t i = idx; i < size_; ++i) {
-                ::new (new_data + i + 1) T(std::move(data_[i]));
-                data_[i].~T();
-            }
+            // All constructions succeeded — destroy old elements.
+            for (i = 0; i < size_; ++i) data_[i].~T();
             if (!is_inline()) ::operator delete(data_);
             data_ = new_data;
             capacity_ = new_cap;
         } else {
-            // Shift elements right
+            // Shift right: data_[size_-1 .. idx] → data_[size_ .. idx+1].
+            // The loop's last iteration (i==idx+1) destroys data_[idx],
+            // so we must NOT call data_[idx].~T() again.
             for (size_t i = size_; i > idx; --i) {
                 ::new (data_ + i) T(std::move(data_[i - 1]));
                 data_[i - 1].~T();
             }
-            data_[idx].~T();
             ::new (data_ + idx) T(std::forward<Args>(args)...);
         }
         ++size_;

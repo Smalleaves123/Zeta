@@ -549,6 +549,7 @@ private:
                         ++size_;
                         ++moved;
                         src->~value_type();
+                        old_ctrl[i] = kDeleted;  // prevent double-destroy on rollback
                     }
                 }
             } catch (...) {
