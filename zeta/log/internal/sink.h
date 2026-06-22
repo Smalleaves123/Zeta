@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <cstdio>
 #include <ctime>
 #include <filesystem>
@@ -18,7 +19,7 @@ namespace zeta {
 namespace log_internal {
 
 // ═══════════════════════════════════════════════════════════════════════
-// Formatting helpers
+// Formatting
 // ═══════════════════════════════════════════════════════════════════════
 
 [[nodiscard]] inline std::string FormatTimestamp() {
@@ -46,16 +47,66 @@ namespace log_internal {
     return out.str();
 }
 
-[[nodiscard]] inline std::string FormatLogRecord(
-    LogSeverity severity, const char* file, int line,
-    std::string_view message) {
-    std::ostringstream out;
-    out << '[' << FormatTimestamp() << "] ["
-        << SeverityName(severity) << "] [tid="
-        << std::this_thread::get_id() << "] "
-        << file << ':' << line << ": " << message << '\n';
-    return out.str();
+struct LogRecordView {
+    LogSeverity severity;
+    const char* file;
+    int line;
+    std::string_view message;
+};
+
+class LogFormatter {
+public:
+    LogFormatter() = default;
+    virtual ~LogFormatter() = default;
+
+    LogFormatter(const LogFormatter&) = delete;
+    LogFormatter& operator=(const LogFormatter&) = delete;
+
+    [[nodiscard]] virtual std::string Format(
+        const LogRecordView& record) noexcept {
+        std::ostringstream out;
+        out << '[' << FormatTimestamp() << "] ["
+            << SeverityName(record.severity) << "] [tid="
+            << std::this_thread::get_id() << "] "
+            << record.file << ':' << record.line << ": "
+            << record.message << '\n';
+        return out.str();
+    }
+};
+
+struct FormatterState {
+    LogFormatter default_instance;
+    LogFormatter* custom = nullptr;
+};
+[[nodiscard]] inline FormatterState& FormatterStateInstance() noexcept {
+    static FormatterState state;
+    return state;
 }
+
+inline void SetLogFormatter(LogFormatter* formatter) noexcept {
+    FormatterStateInstance().custom = formatter;
+}
+
+[[nodiscard]] inline LogFormatter* ActiveFormatter() noexcept {
+    auto& state = FormatterStateInstance();
+    return state.custom ? state.custom : &state.default_instance;
+}
+
+class ScopedLogFormatter {
+public:
+    explicit ScopedLogFormatter(LogFormatter* formatter) noexcept
+        : previous_(FormatterStateInstance().custom) {
+        SetLogFormatter(formatter);
+    }
+
+    ScopedLogFormatter(const ScopedLogFormatter&) = delete;
+    ScopedLogFormatter& operator=(const ScopedLogFormatter&) = delete;
+
+    ~ScopedLogFormatter() { SetLogFormatter(previous_); }
+
+private:
+    LogFormatter* previous_;
+};
 
 // ═══════════════════════════════════════════════════════════════════════
 // LogSink
@@ -71,7 +122,8 @@ public:
 
     virtual void Send(LogSeverity severity, const char* file, int line,
                       std::string_view message) noexcept {
-        std::string record = FormatLogRecord(severity, file, line, message);
+        LogRecordView record_view{severity, file, line, message};
+        std::string record = ActiveFormatter()->Format(record_view);
         std::fwrite(record.data(), 1, record.size(), stderr);
         std::fflush(stderr);
     }
@@ -81,8 +133,12 @@ class FileLogSink : public LogSink {
 public:
     explicit FileLogSink(std::filesystem::path path,
                          std::size_t max_bytes = 0,
-                         bool append = true)
-        : path_(std::move(path)), max_bytes_(max_bytes), append_(append) {
+                         bool append = true,
+                         std::size_t max_files = 2)
+        : path_(std::move(path)),
+          max_bytes_(max_bytes),
+          append_(append),
+          max_files_(max_files < 1 ? 1 : max_files) {
         OpenFile(append_);
     }
 
@@ -97,7 +153,8 @@ public:
         std::lock_guard<std::mutex> lock(mu_);
         if (file_ == nullptr) return;
 
-        std::string record = FormatLogRecord(severity, file, line, message);
+        LogRecordView record_view{severity, file, line, message};
+        std::string record = ActiveFormatter()->Format(record_view);
         if (max_bytes_ > 0 && current_size_ + record.size() > max_bytes_) {
             Rotate();
             if (file_ == nullptr) return;
@@ -131,16 +188,37 @@ private:
         }
 
         std::error_code ec;
-        auto rotated = path_;
-        rotated += ".1";
-        std::filesystem::remove(rotated, ec);
-        std::filesystem::rename(path_, rotated, ec);
+        if (max_files_ > 1) {
+            for (std::size_t i = max_files_ - 1; i > 0; --i) {
+                auto older = RotatedPath(i);
+                auto newer = RotatedPath(i + 1);
+                if (i == max_files_ - 1) {
+                    std::filesystem::remove(newer, ec);
+                }
+                if (std::filesystem::exists(older, ec)) {
+                    std::filesystem::rename(older, newer, ec);
+                }
+            }
+            if (std::filesystem::exists(path_, ec)) {
+                std::filesystem::rename(path_, RotatedPath(1), ec);
+            }
+        } else {
+            std::filesystem::remove(path_, ec);
+        }
         OpenFile(false);
+    }
+
+    [[nodiscard]] std::filesystem::path RotatedPath(std::size_t index) const {
+        auto rotated = path_;
+        rotated += ".";
+        rotated += std::to_string(index);
+        return rotated;
     }
 
     std::filesystem::path path_;
     std::size_t max_bytes_ = 0;
     bool append_ = true;
+    std::size_t max_files_ = 2;
     std::size_t current_size_ = 0;
     std::FILE* file_ = nullptr;
     std::mutex mu_;
@@ -179,14 +257,30 @@ struct SinkState {
     return state;
 }
 
-inline void SetLogSink(LogSink* sink) noexcept {
-    SinkStateInstance().custom = sink;
-}
-
 [[nodiscard]] inline LogSink* ActiveSink() noexcept {
     auto& state = SinkStateInstance();
     return state.custom ? state.custom : &state.default_instance;
 }
+
+inline void SetLogSink(LogSink* sink) noexcept {
+    SinkStateInstance().custom = sink;
+}
+
+class ScopedLogSink {
+public:
+    explicit ScopedLogSink(LogSink* sink) noexcept
+        : previous_(SinkStateInstance().custom) {
+        SetLogSink(sink);
+    }
+
+    ScopedLogSink(const ScopedLogSink&) = delete;
+    ScopedLogSink& operator=(const ScopedLogSink&) = delete;
+
+    ~ScopedLogSink() { SetLogSink(previous_); }
+
+private:
+    LogSink* previous_;
+};
 
 } // namespace log_internal
 } // namespace zeta
