@@ -1,12 +1,9 @@
-@PACKAGE_INIT@
+set(ZETA_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../include")
 
-set_and_check(ZETA_INCLUDE_DIR "@PACKAGE_ZETA_INCLUDE_DIR@")
+include("${CMAKE_CURRENT_LIST_DIR}/zetaTargets.cmake")
 
 if(NOT TARGET zeta)
     add_library(zeta INTERFACE IMPORTED)
     set_target_properties(zeta PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${ZETA_INCLUDE_DIR}"
-        INTERFACE_COMPILE_FEATURES "cxx_std_20")
+        INTERFACE_LINK_LIBRARIES zeta::zeta)
 endif()
-
-check_required_components(zeta)

@@ -97,7 +97,8 @@ TEST_CASE("Status: copy assignment", "[status][copy]") {
 
 TEST_CASE("Status: self-copy assignment no-op", "[status][copy]") {
     auto a = zeta::NotFoundError("file");
-    a = a;
+    auto& self = a;
+    a = self;
     REQUIRE(a.code() == zeta::StatusCode::kNotFound);
     REQUIRE(a.message() == "file");
 }

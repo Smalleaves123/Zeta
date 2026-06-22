@@ -77,7 +77,7 @@ class HashState {
 public:
     /// Start with a seed.
     explicit HashState(uint64_t seed = 0) noexcept
-        : acc_(seed + hash_internal::kPrime5), len_(0), buf_{} {}
+        : acc_(seed + hash_internal::kPrime5), buf_{}, len_(0) {}
 
     /// Feed a block of bytes into the hash.
     void Feed(const void* data, size_t size) noexcept {

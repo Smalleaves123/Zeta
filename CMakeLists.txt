@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
 project(zeta VERSION 0.1.0 LANGUAGES CXX)
 
+option(ZETA_ENABLE_WARNINGS_AS_ERRORS
+       "Treat compiler warnings as errors for Zeta builds"
+       OFF)
+
 # ── C++20 required ──────────────────────────────────────────────
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -9,13 +13,23 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # ── Compiler flags ──────────────────────────────────────────────
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     add_compile_options(-Wall -Wextra -Wpedantic -Wno-unused-parameter)
+    if(ZETA_ENABLE_WARNINGS_AS_ERRORS)
+        add_compile_options(-Werror)
+    endif()
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         add_compile_options(-O3 -DNDEBUG)
+    endif()
+elseif(MSVC)
+    add_compile_options(/W4)
+    if(ZETA_ENABLE_WARNINGS_AS_ERRORS)
+        add_compile_options(/WX)
     endif()
 endif()
 
 # ── Header-only library (Abseil-style: headers live under zeta/) ─
 add_library(zeta INTERFACE)
+add_library(zeta::zeta ALIAS zeta)
+add_custom_target(zeta_headers)
 target_include_directories(zeta INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:include>
@@ -52,25 +66,28 @@ endif()
 
 # ── Install ──────────────────────────────────────────────────────
 include(GNUInstallDirs)
-include(CMakePackageConfigHelpers)
-
 # Install all public headers (preserve directory structure under zeta/)
 install(DIRECTORY zeta
         DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
         FILES_MATCHING PATTERN "*.h")
 
 # Generate package config files
-set(ZETA_INCLUDE_DIR "${CMAKE_INSTALL_INCLUDEDIR}")
-configure_package_config_file(
+include(CMakePackageConfigHelpers)
+configure_file(
     cmake/zetaConfig.cmake.in
     "${CMAKE_CURRENT_BINARY_DIR}/zetaConfig.cmake"
-    INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/zeta"
-    PATH_VARS ZETA_INCLUDE_DIR)
+    @ONLY)
 
 write_basic_package_version_file(
     "${CMAKE_CURRENT_BINARY_DIR}/zetaConfigVersion.cmake"
     VERSION ${PROJECT_VERSION}
     COMPATIBILITY AnyNewerVersion)
+
+install(TARGETS zeta EXPORT zetaTargets)
+install(EXPORT zetaTargets
+    NAMESPACE zeta::
+    FILE zetaTargets.cmake
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/zeta")
 
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/zetaConfig.cmake"

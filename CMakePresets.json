@@ -22,6 +22,13 @@
             }
         },
         {
+            "name": "ci-base",
+            "hidden": true,
+            "cacheVariables": {
+                "ZETA_ENABLE_WARNINGS_AS_ERRORS": "ON"
+            }
+        },
+        {
             "name": "debug",
             "displayName": "Debug",
             "description": "Debug build with tests enabled",
@@ -40,6 +47,20 @@
             }
         },
         {
+            "name": "ci-debug",
+            "displayName": "CI Debug",
+            "description": "Debug build with warnings-as-errors",
+            "inherits": ["debug", "ci-base"],
+            "binaryDir": "${sourceDir}/build/ci-debug"
+        },
+        {
+            "name": "ci-release",
+            "displayName": "CI Release",
+            "description": "Release build with warnings-as-errors",
+            "inherits": ["release", "ci-base"],
+            "binaryDir": "${sourceDir}/build/ci-release"
+        },
+        {
             "name": "asan",
             "displayName": "AddressSanitizer",
             "description": "Debug build with AddressSanitizer",
@@ -53,6 +74,13 @@
             }
         },
         {
+            "name": "ci-asan",
+            "displayName": "CI AddressSanitizer",
+            "description": "ASan build with warnings-as-errors",
+            "inherits": ["asan", "ci-base"],
+            "binaryDir": "${sourceDir}/build/ci-asan"
+        },
+        {
             "name": "ubsan",
             "displayName": "UndefinedBehaviorSanitizer",
             "description": "Debug build with UndefinedBehaviorSanitizer",
@@ -64,6 +92,13 @@
                 "CMAKE_CXX_FLAGS": "-fsanitize=undefined -fno-omit-frame-pointer -g",
                 "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=undefined"
             }
+        },
+        {
+            "name": "ci-ubsan",
+            "displayName": "CI UndefinedBehaviorSanitizer",
+            "description": "UBSan build with warnings-as-errors",
+            "inherits": ["ubsan", "ci-base"],
+            "binaryDir": "${sourceDir}/build/ci-ubsan"
         },
         {
             "name": "tsan",
@@ -89,16 +124,32 @@
             "configurePreset": "debug"
         },
         {
+            "name": "ci-debug",
+            "configurePreset": "ci-debug"
+        },
+        {
             "name": "release",
             "configurePreset": "release"
+        },
+        {
+            "name": "ci-release",
+            "configurePreset": "ci-release"
         },
         {
             "name": "asan",
             "configurePreset": "asan"
         },
         {
+            "name": "ci-asan",
+            "configurePreset": "ci-asan"
+        },
+        {
             "name": "ubsan",
             "configurePreset": "ubsan"
+        },
+        {
+            "name": "ci-ubsan",
+            "configurePreset": "ci-ubsan"
         },
         {
             "name": "tsan",
@@ -121,8 +172,22 @@
             }
         },
         {
+            "name": "ci-debug",
+            "configurePreset": "ci-debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
             "name": "release",
             "configurePreset": "release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "ci-release",
+            "configurePreset": "ci-release",
             "output": {
                 "outputOnFailure": true
             }
@@ -135,8 +200,22 @@
             }
         },
         {
+            "name": "ci-asan",
+            "configurePreset": "ci-asan",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
             "name": "ubsan",
             "configurePreset": "ubsan",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "ci-ubsan",
+            "configurePreset": "ci-ubsan",
             "output": {
                 "outputOnFailure": true
             }

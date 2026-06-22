@@ -1,6 +1,8 @@
 #include "zeta/container/flat_hash_map.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <random>
+#include <unordered_map>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -276,6 +278,63 @@ TEST_CASE("flat_hash_map: rvalue insert", "[map]") {
     zeta::flat_hash_map<std::string, int> m;
     m.insert(std::make_pair("hello", 42));
     REQUIRE(m.at("hello") == 42);
+}
+
+TEST_CASE("flat_hash_map: randomized parity with std::unordered_map", "[map][stress]") {
+    zeta::flat_hash_map<int, int, CollisionHash> actual;
+    std::unordered_map<int, int, CollisionHash> expected;
+    std::mt19937 rng(20260622);
+
+    for (int step = 0; step < 5000; ++step) {
+        const int key = static_cast<int>(rng() % 128);
+        switch (rng() % 5) {
+        case 0: {
+            const int value = static_cast<int>(rng() % 100000);
+            const auto [it1, ok1] = actual.insert({key, value});
+            const auto [it2, ok2] = expected.insert({key, value});
+            REQUIRE(ok1 == ok2);
+            REQUIRE(it1->second == it2->second);
+            break;
+        }
+        case 1: {
+            const int value = static_cast<int>(rng() % 100000);
+            const bool existed = expected.find(key) != expected.end();
+            const auto [it, inserted] = actual.insert_or_assign(key, value);
+            expected.insert_or_assign(key, value);
+            REQUIRE(it->second == expected.at(key));
+            REQUIRE(inserted == !existed);
+            break;
+        }
+        case 2: {
+            REQUIRE(actual.erase(key) == expected.erase(key));
+            break;
+        }
+        case 3: {
+            if (rng() & 1U) {
+                actual.reserve((rng() % 256) + 1);
+            } else {
+                actual.rehash((rng() % 256) + 1);
+            }
+            break;
+        }
+        default: {
+            const auto actual_it = actual.find(key);
+            const auto expected_it = expected.find(key);
+            REQUIRE((actual_it == actual.end()) == (expected_it == expected.end()));
+            if (expected_it != expected.end()) {
+                REQUIRE(actual_it->second == expected_it->second);
+            }
+            break;
+        }
+        }
+
+        REQUIRE(actual.size() == expected.size());
+        for (const auto& [expected_key, expected_value] : expected) {
+            auto it = actual.find(expected_key);
+            REQUIRE(it != actual.end());
+            REQUIRE(it->second == expected_value);
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════
