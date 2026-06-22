@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: 4
+
+jobs:
+  # ── Linux: GCC ──────────────────────────────────────────────
+  linux-gcc:
+    name: Linux GCC ${{ matrix.gcc }} ${{ matrix.preset }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        gcc: [12, 14]
+        preset: [ci-release, ci-asan, ci-ubsan]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GCC ${{ matrix.gcc }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq g++-${{ matrix.gcc }}
+          echo "CC=gcc-${{ matrix.gcc }}" >> $GITHUB_ENV
+          echo "CXX=g++-${{ matrix.gcc }}" >> $GITHUB_ENV
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }} --output-on-failure
+
+  # ── Linux: Clang ────────────────────────────────────────────
+  linux-clang:
+    name: Linux Clang ${{ matrix.clang }} ${{ matrix.preset }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        clang: [17, 18]
+        preset: [ci-release, ci-asan, ci-ubsan]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Clang ${{ matrix.clang }}
+        run: |
+          wget -q https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh ${{ matrix.clang }}
+          echo "CC=clang-${{ matrix.clang }}" >> $GITHUB_ENV
+          echo "CXX=clang++-${{ matrix.clang }}" >> $GITHUB_ENV
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }} --output-on-failure
+
+  # ── macOS: AppleClang ──────────────────────────────────────
+  macos:
+    name: macOS ${{ matrix.arch }} ${{ matrix.preset }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+            preset: ci-release
+          - arch: arm64
+            runner: macos-15
+            preset: ci-debug
+          - arch: x86_64
+            runner: macos-13
+            preset: ci-release
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }} --output-on-failure
+
+  # ── Windows: MSVC ──────────────────────────────────────────
+  windows:
+    name: Windows MSVC ${{ matrix.preset }}
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [ci-release, ci-debug]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }} --output-on-failure --test-dir build/${{ matrix.preset }}
+
+  package-smoke:
+    name: Package Smoke Test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake --preset ci-release
+      - name: Build
+        run: cmake --build --preset ci-release
+      - name: Install
+        run: cmake --install build/ci-release --prefix "${{ github.workspace }}/stage"
+      - name: Consumer Configure
+        run: >
+          cmake
+          -S cmake/package_smoke_test
+          -B build/package-smoke
+          -DCMAKE_PREFIX_PATH="${{ github.workspace }}/stage"
+      - name: Consumer Build
+        run: cmake --build build/package-smoke
+      - name: Consumer Run
+        run: ./build/package-smoke/zeta_package_smoke_test
