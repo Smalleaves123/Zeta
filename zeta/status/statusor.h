@@ -168,8 +168,8 @@ public:
 
     /// Returns the held value if ok(), otherwise returns `default_value`.
     template <typename U>
-    [[nodiscard]] std::enable_if_t<std::is_copy_constructible_v<T>, T>
-    value_or(U&& default_value) const& {
+        requires std::is_copy_constructible_v<T>
+    [[nodiscard]] T value_or(U&& default_value) const& {
         return ok() ? *value_ptr()
                     : static_cast<T>(std::forward<U>(default_value));
     }
