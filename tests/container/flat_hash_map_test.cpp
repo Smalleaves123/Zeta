@@ -28,6 +28,12 @@ struct TransparentEq {
     }
 };
 
+struct CollisionHash {
+    size_t operator()(int value) const noexcept {
+        return static_cast<size_t>(value & 0x0F);
+    }
+};
+
 // ═══════════════════════════════════════════════════════════════════
 // flat_hash_map tests
 // ═══════════════════════════════════════════════════════════════════
@@ -127,6 +133,19 @@ TEST_CASE("flat_hash_map: erase by iterator", "[map]") {
 TEST_CASE("flat_hash_map: erase from empty", "[map][edge]") {
     zeta::flat_hash_map<int, std::string> m;
     REQUIRE(m.erase(1) == 0);
+}
+
+TEST_CASE("flat_hash_map: lookup survives tombstones in probe chain", "[map][erase][collision]") {
+    zeta::flat_hash_map<int, int, CollisionHash> m;
+    m.insert({1, 10});
+    m.insert({17, 20});
+    m.insert({33, 30});
+
+    REQUIRE(m.erase(1) == 1);
+    REQUIRE(m.contains(17));
+    REQUIRE(m.contains(33));
+    REQUIRE(m.at(17) == 20);
+    REQUIRE(m.at(33) == 30);
 }
 
 TEST_CASE("flat_hash_map: iteration", "[map]") {

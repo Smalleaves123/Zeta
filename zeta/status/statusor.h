@@ -97,10 +97,13 @@ public:
     }
 
     /// Construction from a Status — the error path.
-    /// Explicit to prevent accidental `StatusOr<T> = OkStatus()` which
-    /// would create a StatusOr with ok()==true but no value (UB on access).
-    explicit StatusOr(Status status) noexcept
-        : status_(std::move(status)) {}
+    /// An OK status is normalized into an internal error so `StatusOr<T>`
+    /// never reaches the invalid state "ok() == true but no value".
+    /// NOLINTNEXTLINE(google-explicit-constructor)
+    StatusOr(Status status) noexcept
+        : status_(status.ok()
+                      ? InternalError("StatusOr<T> requires a value")
+                      : std::move(status)) {}
 
     // ── Copy (only valid if T is copyable) ───────────────────────
 

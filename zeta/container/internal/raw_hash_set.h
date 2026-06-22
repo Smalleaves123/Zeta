@@ -104,6 +104,28 @@ inline uint32_t MatchEmptyOrDeleted(const int8_t* ctrl) noexcept {
 #endif
 }
 
+inline uint32_t MatchEmpty(const int8_t* ctrl) noexcept {
+#if ZETA_NEON
+    uint8x16_t c = vld1q_u8(reinterpret_cast<const uint8_t*>(ctrl));
+    uint8x16_t m = vceqq_u8(c, vdupq_n_u8(static_cast<uint8_t>(kEmpty)));
+    static const uint8_t bits[16] = {1,2,4,8,16,32,64,128,1,2,4,8,16,32,64,128};
+    uint8x16_t masked = vandq_u8(m, vld1q_u8(bits));
+    uint8x8_t p1 = vpadd_u8(vget_low_u8(masked), vget_high_u8(masked));
+    uint8x8_t p2 = vpadd_u8(p1, p1);
+    uint8x8_t p3 = vpadd_u8(p2, p2);
+    return vget_lane_u16(vreinterpret_u16_u8(p3), 0);
+#elif ZETA_SSE2
+    __m128i c = _mm_loadu_si128(reinterpret_cast<const __m128i*>(ctrl));
+    return static_cast<uint32_t>(_mm_movemask_epi8(
+        _mm_cmpeq_epi8(c, _mm_set1_epi8(static_cast<char>(kEmpty)))));
+#else
+    uint32_t mask = 0;
+    for (size_t i = 0; i < kGroupWidth; ++i)
+        if (ctrl[i] == kEmpty) mask |= (1u << i);
+    return mask;
+#endif
+}
+
 inline size_t LowestBitSet(uint32_t mask) noexcept {
     return static_cast<size_t>(zeta::countr_zero(mask));
 }
@@ -537,7 +559,6 @@ private:
         std::memset(ctrl_, kEmpty, new_capacity + kGroupWidth + 1);
 
         if (old_slots) {
-            size_t moved = 0;
             try {
                 for (size_t i = 0; i < old_capacity; ++i) {
                     if (old_ctrl[i] != kEmpty && old_ctrl[i] != kDeleted) {
@@ -547,7 +568,6 @@ private:
                         ::new (slots_ + pos) value_type(std::move(*src));
                         set_ctrl(pos, static_cast<int8_t>(H2(hv)));
                         ++size_;
-                        ++moved;
                         src->~value_type();
                         old_ctrl[i] = kDeleted;  // prevent double-destroy on rollback
                     }
@@ -607,7 +627,7 @@ private:
                 mask &= (mask - 1);
             }
 
-            if (MatchEmptyOrDeleted(group) != 0) return capacity_;
+            if (MatchEmpty(group) != 0) return capacity_;
             pos = (pos + kGroupWidth) & (capacity_ - 1);
         }
     }

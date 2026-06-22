@@ -47,6 +47,13 @@ TEST_CASE("StatusOr: construct from moved Status", "[statusor]") {
     REQUIRE(r.status().code() == zeta::StatusCode::kInvalidArgument);
 }
 
+TEST_CASE("StatusOr: constructing from OkStatus preserves invariant", "[statusor][invariant]") {
+    zeta::StatusOr<int> r(zeta::OkStatus());
+    REQUIRE(!r.ok());
+    REQUIRE(r.status().code() == zeta::StatusCode::kInternal);
+    REQUIRE(r.status().message() == "StatusOr<T> requires a value");
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Observers
 // ═══════════════════════════════════════════════════════════════════
