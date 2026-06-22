@@ -152,7 +152,7 @@ template <typename Policy, typename Hash, typename KeyEq>
 class raw_hash_set {
 public:
     using key_type        = typename Policy::key_type;
-    using value_type      = typename Policy::value_type;
+    using stored_value_type = typename Policy::value_type;
     using hasher          = Hash;
     using key_equal       = KeyEq;
     using size_type       = size_t;
@@ -162,18 +162,11 @@ private:
     // ── iterator_impl (templated on const-ness) ───────────────────
     template <bool IsConst>
     class iterator_impl {
-        using maybe_const = std::conditional_t<IsConst, const value_type,
-                                                       value_type>;
+        using maybe_const = std::conditional_t<IsConst, const stored_value_type,
+                                                       stored_value_type>;
     public:
         using iterator_category = std::forward_iterator_tag;
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wchanges-meaning"
-#endif
-        using value_type        = typename raw_hash_set::value_type;
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
+        using value_type        = stored_value_type;
         using difference_type   = std::ptrdiff_t;
         using pointer           = maybe_const*;
         using reference         = maybe_const&;
@@ -242,10 +235,10 @@ private:
 public:
     using iterator       = iterator_impl<false>;
     using const_iterator = iterator_impl<true>;
-    using reference      = value_type&;
-    using const_reference = const value_type&;
-    using pointer        = value_type*;
-    using const_pointer  = const value_type*;
+    using reference      = stored_value_type&;
+    using const_reference = const stored_value_type&;
+    using pointer        = stored_value_type*;
+    using const_pointer  = const stored_value_type*;
 
     // ── Construction / destruction ────────────────────────────────
     raw_hash_set() noexcept { reset_layout(); }
@@ -331,10 +324,10 @@ public:
     }
 
     // ── Insert ────────────────────────────────────────────────────
-    std::pair<iterator, bool> insert(const value_type& v) {
+    std::pair<iterator, bool> insert(const stored_value_type& v) {
         return emplace(v);
     }
-    std::pair<iterator, bool> insert(value_type&& v) {
+    std::pair<iterator, bool> insert(stored_value_type&& v) {
         return emplace(std::move(v));
     }
 
@@ -346,7 +339,7 @@ public:
         size_t hash_val = hash_(key);
         size_t idx = find_impl(key, hash_val);
         if (idx != capacity_) return {iterator_at(idx), false};
-        value_type v(std::piecewise_construct,
+        stored_value_type v(std::piecewise_construct,
                      std::forward_as_tuple(key),
                      std::forward_as_tuple(std::forward<Args>(args)...));
         return emplace_new(key, hash_val, std::move(v));
@@ -357,7 +350,7 @@ public:
         size_t hash_val = hash_(key);
         size_t idx = find_impl(key, hash_val);
         if (idx != capacity_) return {iterator_at(idx), false};
-        value_type v(std::piecewise_construct,
+        stored_value_type v(std::piecewise_construct,
                      std::forward_as_tuple(std::move(key)),
                      std::forward_as_tuple(std::forward<Args>(args)...));
         return emplace_new(v.first, hash_val, std::move(v));
@@ -373,7 +366,7 @@ public:
             slots_[idx].second = std::forward<M>(obj);
             return {iterator_at(idx), false};
         }
-        value_type v(key, std::forward<M>(obj));
+        stored_value_type v(key, std::forward<M>(obj));
         return emplace_new(key, hash_val, std::move(v));
     }
     template <typename M>
@@ -385,7 +378,7 @@ public:
             slots_[idx].second = std::forward<M>(obj);
             return {iterator_at(idx), false};
         }
-        value_type v(std::move(key), std::forward<M>(obj));
+        stored_value_type v(std::move(key), std::forward<M>(obj));
         const key_type& k = Policy::get_key(v);
         return emplace_new(k, hash_val, std::move(v));
     }
@@ -399,7 +392,7 @@ public:
     // ── Erase (heterogeneous) ─────────────────────────────────────
     iterator erase(const_iterator pos) {
         size_t idx = static_cast<size_t>(pos.slot_ - slots_);
-        pos.slot_->~value_type();
+        pos.slot_->~stored_value_type();
         set_ctrl(idx, kDeleted);
         --size_;
         return iterator_at(idx + 1); // next valid
@@ -412,7 +405,7 @@ public:
     size_t erase(const K& key) {
         size_t idx = find_impl(key, hash_(key));
         if (idx == capacity_) return 0;
-        slots_[idx].~value_type();
+        slots_[idx].~stored_value_type();
         set_ctrl(idx, kDeleted);
         --size_;
         return 1;
@@ -438,21 +431,21 @@ public:
     const_iterator cend()   const noexcept { return end(); }
 
     // ── operator[] (map only) ─────────────────────────────────────
-    template <typename V = value_type>
+    template <typename V = stored_value_type>
     typename V::second_type& operator[](const key_type& key) {
         size_t hash_val = hash_(key);
         size_t idx = find_impl(key, hash_val);
         if (idx != capacity_) return slots_[idx].second;
-        value_type v(key, typename V::second_type{});
+        stored_value_type v(key, typename V::second_type{});
         auto [it, _] = emplace_new(key, hash_val, std::move(v));
         return it->second;
     }
-    template <typename V = value_type>
+    template <typename V = stored_value_type>
     typename V::second_type& operator[](key_type&& key) {
         size_t hash_val = hash_(key);
         size_t idx = find_impl(key, hash_val);
         if (idx != capacity_) return slots_[idx].second;
-        value_type v(std::move(key), typename V::second_type{});
+        stored_value_type v(std::move(key), typename V::second_type{});
         auto [it, _] = emplace_new(v.first, hash_val, std::move(v));
         return it->second;
     }
@@ -486,7 +479,7 @@ public:
 
 private:
     int8_t*     ctrl_     = nullptr;
-    value_type* slots_    = nullptr;
+    stored_value_type* slots_    = nullptr;
     size_t      size_     = 0;
     size_t      capacity_ = 0;
     [[no_unique_address]] Hash   hash_;
@@ -496,12 +489,12 @@ private:
     using iter_end_tag = typename iterator::end_tag_t;
     using citer_end_tag = typename const_iterator::end_tag_t;
 
-    iterator make_iter(value_type* slot) noexcept {
+    iterator make_iter(stored_value_type* slot) noexcept {
         if (capacity_ == 0) return end();
         return iterator{slot, ctrl_ + (slot - slots_),
                         slots_ + capacity_};
     }
-    const_iterator make_citer(const value_type* slot) const noexcept {
+    const_iterator make_citer(const stored_value_type* slot) const noexcept {
         if (capacity_ == 0) return end();
         return const_iterator{slot, ctrl_ + (slot - slots_),
                               slots_ + capacity_};
@@ -532,7 +525,7 @@ private:
         if (!slots_) return;
         for (size_t i = 0; i < capacity_; ++i)
             if (ctrl_[i] != kEmpty && ctrl_[i] != kDeleted)
-                slots_[i].~value_type();
+                slots_[i].~stored_value_type();
         ::operator delete(slots_);
         ::operator delete(ctrl_);
         slots_ = nullptr; ctrl_ = nullptr;
@@ -548,14 +541,14 @@ private:
         if (new_capacity <= capacity_) return;
 
         int8_t*     old_ctrl     = ctrl_;
-        value_type* old_slots    = slots_;
+        stored_value_type* old_slots    = slots_;
         size_t      old_capacity = capacity_;
         size_t      old_size     = size_;
 
         int8_t* new_ctrl = static_cast<int8_t*>(
             ::operator new(sizeof(int8_t) * (new_capacity + kGroupWidth + 1)));
-        value_type* new_slots = static_cast<value_type*>(
-            ::operator new(sizeof(value_type) * new_capacity));
+        stored_value_type* new_slots = static_cast<stored_value_type*>(
+            ::operator new(sizeof(stored_value_type) * new_capacity));
 
         // Assign to members so prepare_insert sees new layout.
         ctrl_ = new_ctrl;
@@ -569,13 +562,13 @@ private:
             try {
                 for (size_t i = 0; i < old_capacity; ++i) {
                     if (old_ctrl[i] != kEmpty && old_ctrl[i] != kDeleted) {
-                        value_type* src = old_slots + i;
+                        stored_value_type* src = old_slots + i;
                         size_t hv = hash_(Policy::get_key(*src));
                         size_t pos = prepare_insert(hv);
-                        ::new (slots_ + pos) value_type(std::move(*src));
+                        ::new (slots_ + pos) stored_value_type(std::move(*src));
                         set_ctrl(pos, static_cast<int8_t>(H2(hv)));
                         ++size_;
-                        src->~value_type();
+                        src->~stored_value_type();
                         old_ctrl[i] = kDeleted;  // prevent double-destroy on rollback
                     }
                 }
@@ -583,7 +576,7 @@ private:
                 // Destroy elements already moved into new storage.
                 for (size_t j = 0; j < capacity_; ++j) {
                     if (ctrl_[j] != kEmpty && ctrl_[j] != kDeleted)
-                        slots_[j].~value_type();
+                        slots_[j].~stored_value_type();
                 }
                 ::operator delete(new_slots);
                 ::operator delete(new_ctrl);
@@ -604,10 +597,10 @@ private:
         rehash_impl(other.capacity_);
         for (size_t i = 0; i < other.capacity_; ++i) {
             if (other.ctrl_[i] != kEmpty && other.ctrl_[i] != kDeleted) {
-                const value_type& src = other.slots_[i];
+                const stored_value_type& src = other.slots_[i];
                 size_t hv = hash_(Policy::get_key(src));
                 size_t pos = prepare_insert(hv);
-                ::new (slots_ + pos) value_type(src);
+                ::new (slots_ + pos) stored_value_type(src);
                 set_ctrl(pos, static_cast<int8_t>(H2(hv)));
                 ++size_;
             }
@@ -665,7 +658,7 @@ private:
     // General emplace (constructs value first, may be wasteful)
     template <typename... Args>
     std::pair<iterator, bool> emplace_impl(Args&&... args) {
-        value_type tmp(std::forward<Args>(args)...);
+        stored_value_type tmp(std::forward<Args>(args)...);
         const key_type& key = Policy::get_key(tmp);
         size_t hash_val = hash_(key);
         size_t idx = find_impl(key, hash_val);
@@ -681,7 +674,7 @@ private:
         if (size_ >= capacity_ * 7 / 8)
             rehash_impl(std::max<size_t>(capacity_ * 2, 16));
         size_t pos = prepare_insert(hash_val);
-        ::new (slots_ + pos) value_type(std::forward<Args>(args)...);
+        ::new (slots_ + pos) stored_value_type(std::forward<Args>(args)...);
         set_ctrl(pos, static_cast<int8_t>(H2(hash_val)));
         ++size_;
         return {iterator_at(pos), true};
