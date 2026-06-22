@@ -353,10 +353,14 @@ TEST_CASE("flat_hash_map: large insert (100k)", "[map][stress]") {
 
 TEST_CASE("flat_hash_map: self-assignment", "[map][edge]") {
     zeta::flat_hash_map<int, int> m = {{1, 10}, {2, 20}};
+#if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wself-assign-overloaded"
+#endif
     m = m;
+#if defined(__clang__)
 #pragma clang diagnostic pop
+#endif
     REQUIRE(m.size() == 2);
     REQUIRE(m.at(1) == 10);
 }

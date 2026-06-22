@@ -166,7 +166,14 @@ private:
                                                        value_type>;
     public:
         using iterator_category = std::forward_iterator_tag;
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wchanges-meaning"
+#endif
         using value_type        = typename raw_hash_set::value_type;
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
         using difference_type   = std::ptrdiff_t;
         using pointer           = maybe_const*;
         using reference         = maybe_const&;

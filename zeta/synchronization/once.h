@@ -19,7 +19,7 @@ void CallOnce(class OnceFlag& flag, F&& fn) noexcept(noexcept(fn()));
 
 class OnceFlag {
 public:
-    constexpr OnceFlag() noexcept : state_(0) {}
+    OnceFlag() noexcept : state_(0) {}
 
     OnceFlag(const OnceFlag&) = delete;
     OnceFlag& operator=(const OnceFlag&) = delete;
