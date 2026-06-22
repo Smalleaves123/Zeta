@@ -20,6 +20,7 @@
 ///   uint64_t y = zeta::rotl(x, 3);      // 0b10110000000
 
 #include <bit>
+#include <cstddef>
 #include <climits>
 #include <concepts>
 #include <cstdint>
@@ -195,7 +196,7 @@ template <std::unsigned_integral T>
 
 namespace bits_internal {
 
-template <std::unsigned_integral T, size_t Size = sizeof(T)>
+template <std::unsigned_integral T, std::size_t Size = sizeof(T)>
 struct byteswap_impl {
     static constexpr T apply(T x) noexcept {
         // Generic byte-by-byte reverse (reachable only for unusual widths).
@@ -203,7 +204,7 @@ struct byteswap_impl {
             T val;
             unsigned char bytes[sizeof(T)];
         } u = {x};
-        for (size_t i = 0, j = sizeof(T) - 1; i < j; ++i, --j) {
+        for (std::size_t i = 0, j = sizeof(T) - 1; i < j; ++i, --j) {
             unsigned char tmp = u.bytes[i];
             u.bytes[i] = u.bytes[j];
             u.bytes[j] = tmp;
