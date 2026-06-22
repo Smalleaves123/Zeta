@@ -166,6 +166,19 @@ public:
     /// Equivalent to ok().
     [[nodiscard]] explicit operator bool() const noexcept { return ok(); }
 
+    /// Returns the held value if ok(), otherwise returns `default_value`.
+    template <typename U>
+    [[nodiscard]] std::enable_if_t<std::is_copy_constructible_v<T>, T>
+    value_or(U&& default_value) const& {
+        return ok() ? *value_ptr()
+                    : static_cast<T>(std::forward<U>(default_value));
+    }
+
+    /// Move-aware overload for rvalues.
+    [[nodiscard]] T value_or(T default_value) && {
+        return ok() ? std::move(*value_ptr()) : std::move(default_value);
+    }
+
     /// Returns the status.  OkStatus() when ok() is true.
     [[nodiscard]] const Status& status() const& noexcept { return status_; }
     [[nodiscard]] Status       status() &&      noexcept { return std::move(status_); }
@@ -249,8 +262,12 @@ public:
     [[nodiscard]] bool ok() const noexcept { return status_.ok(); }
     [[nodiscard]] explicit operator bool() const noexcept { return ok(); }
 
+    [[nodiscard]] constexpr bool has_value() const noexcept { return ok(); }
+
     [[nodiscard]] const Status& status() const& noexcept { return status_; }
     [[nodiscard]] Status       status() &&      noexcept { return std::move(status_); }
+
+    void value_or() const noexcept { }
 
     /// @pre ok() == true
     void value() const { assert(ok()); }

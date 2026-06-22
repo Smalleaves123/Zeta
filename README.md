@@ -272,6 +272,16 @@ hm["hello"] = 42;
 auto it = hm.find("hello"sv);  // no std::string constructed!
 ```
 
+### 8. `zeta/status/result.h`
+
+`zeta::Result<T>` is an alias for `zeta::StatusOr<T>` when a result-oriented name is clearer in application code.
+
+```cpp
+#include <zeta/status/result.h>
+
+zeta::Result<int> ParseInt(std::string_view s);
+```
+
 **Full API surface:**
 | Method | Description |
 |--------|------------|
