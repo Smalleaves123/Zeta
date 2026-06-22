@@ -63,7 +63,11 @@ TEST_CASE("StrCat: ten arguments", "[str_cat]") {
 // ── Edge cases: numeric extremes ────────────────────────────────────
 TEST_CASE("StrCat: INT_MIN / LONG_MIN", "[str_cat][edge]") {
     REQUIRE(zeta::StrCat(INT_MIN) == "-2147483648");
-    REQUIRE(zeta::StrCat(LONG_MIN) == "-9223372036854775808");
+    if constexpr (sizeof(long) == 8) {
+        REQUIRE(zeta::StrCat(LONG_MIN) == "-9223372036854775808");
+    } else {
+        REQUIRE(zeta::StrCat(LONG_MIN) == "-2147483648");
+    }
 }
 
 TEST_CASE("StrCat: unsigned types", "[str_cat][edge]") {

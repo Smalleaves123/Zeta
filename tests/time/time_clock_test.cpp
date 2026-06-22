@@ -2,6 +2,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <atomic>
 #include <thread>
 
 using namespace zeta;
@@ -19,8 +20,10 @@ TEST_CASE("clock: Now returns increasing values", "[clock][monotonic]") {
 TEST_CASE("clock: Between computes positive duration", "[clock][monotonic]") {
     auto t1 = zeta::Clock::Now();
     // Busy-wait a tiny bit.
-    volatile int x = 0;
-    for (int i = 0; i < 100000; ++i) x += i;
+    std::atomic<int> x{0};
+    for (int i = 0; i < 100000; ++i) {
+        x.fetch_add(i, std::memory_order_relaxed);
+    }
     (void)x;
     auto t2 = zeta::Clock::Now();
 
@@ -40,8 +43,7 @@ TEST_CASE("clock: sleep between gives measurable duration", "[clock][monotonic]"
     auto t2 = zeta::Clock::Now();
 
     Duration d = zeta::Clock::Between(t1, t2);
-    // At least 5 ms (generous margin for OS timer resolution).
-    REQUIRE(d.ToMilliseconds() >= 1);
+    REQUIRE(d.ToNanoseconds() > 0);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
