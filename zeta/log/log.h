@@ -37,6 +37,12 @@ public:
     LogMessage& operator=(const LogMessage&) = delete;
 
     ~LogMessage() {
+        if (!log_internal::ShouldLog(severity_)) {
+            if (severity_ == log_internal::LogSeverity::FATAL) {
+                std::abort();
+            }
+            return;
+        }
         std::string msg = stream_.str();
         log_internal::ActiveSink()->Send(severity_, file_, line_, msg);
         if (severity_ == log_internal::LogSeverity::FATAL) {
