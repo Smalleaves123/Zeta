@@ -28,6 +28,17 @@
   #define ZETA_HAS_BUILTIN_INT128 1
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
+#  define ZETA_PRAGMA(x) _Pragma(#x)
+#  define ZETA_DIAGNOSTIC_PUSH ZETA_PRAGMA(GCC diagnostic push)
+#  define ZETA_DIAGNOSTIC_POP ZETA_PRAGMA(GCC diagnostic pop)
+#  define ZETA_DIAGNOSTIC_IGNORE_PEDANTIC ZETA_PRAGMA(GCC diagnostic ignored "-Wpedantic")
+#else
+#  define ZETA_DIAGNOSTIC_PUSH
+#  define ZETA_DIAGNOSTIC_POP
+#  define ZETA_DIAGNOSTIC_IGNORE_PEDANTIC
+#endif
+
 namespace zeta {
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -35,6 +46,9 @@ namespace zeta {
 // ═══════════════════════════════════════════════════════════════════════
 
 #if ZETA_HAS_BUILTIN_INT128
+
+ZETA_DIAGNOSTIC_PUSH
+ZETA_DIAGNOSTIC_IGNORE_PEDANTIC
 
 class Uint128 {
     __uint128_t val_;
@@ -68,16 +82,28 @@ public:
     [[nodiscard]] friend constexpr Uint128 operator-(Uint128 a, Uint128 b) noexcept { Uint128 r; r.val_ = a.val_ - b.val_; return r; }
     [[nodiscard]] friend constexpr Uint128 operator*(Uint128 a, Uint128 b) noexcept { Uint128 r; r.val_ = a.val_ * b.val_; return r; }
     [[nodiscard]] friend constexpr Uint128 operator/(Uint128 a, Uint128 b) noexcept {
-        assert(b.val_ != 0); Uint128 r; r.val_ = a.val_ / b.val_; return r;
+        assert(b.val_ != 0);
+        Uint128 r;
+        r.val_ = a.val_ / b.val_;
+        return r;
     }
     [[nodiscard]] friend constexpr Uint128 operator%(Uint128 a, Uint128 b) noexcept {
-        assert(b.val_ != 0); Uint128 r; r.val_ = a.val_ % b.val_; return r;
+        assert(b.val_ != 0);
+        Uint128 r;
+        r.val_ = a.val_ % b.val_;
+        return r;
     }
     [[nodiscard]] friend constexpr Uint128 operator<<(Uint128 a, int bits) noexcept {
-        if (bits >= 128 || bits < 0) return Uint128(); Uint128 r; r.val_ = a.val_ << bits; return r;
+        if (bits >= 128 || bits < 0) return Uint128();
+        Uint128 r;
+        r.val_ = a.val_ << bits;
+        return r;
     }
     [[nodiscard]] friend constexpr Uint128 operator>>(Uint128 a, int bits) noexcept {
-        if (bits >= 128 || bits < 0) return Uint128(); Uint128 r; r.val_ = a.val_ >> bits; return r;
+        if (bits >= 128 || bits < 0) return Uint128();
+        Uint128 r;
+        r.val_ = a.val_ >> bits;
+        return r;
     }
     [[nodiscard]] friend constexpr Uint128 operator&(Uint128 a, Uint128 b) noexcept  { Uint128 r; r.val_ = a.val_ & b.val_; return r; }
     [[nodiscard]] friend constexpr Uint128 operator|(Uint128 a, Uint128 b) noexcept  { Uint128 r; r.val_ = a.val_ | b.val_; return r; }
@@ -260,10 +286,16 @@ public:
     [[nodiscard]] friend constexpr Int128 operator%(Int128 a, Int128 b) noexcept { assert(b); Int128 r; r.val_ = a.val_ % b.val_; return r; }
     [[nodiscard]] friend constexpr Int128 operator-(Int128 a) noexcept { Int128 r; r.val_ = -a.val_; return r; }
     [[nodiscard]] friend constexpr Int128 operator<<(Int128 a, int bits) noexcept {
-        if (bits >= 128 || bits < 0) return Int128(0); Int128 r; r.val_ = a.val_ << bits; return r;
+        if (bits >= 128 || bits < 0) return Int128(0);
+        Int128 r;
+        r.val_ = a.val_ << bits;
+        return r;
     }
     [[nodiscard]] friend constexpr Int128 operator>>(Int128 a, int bits) noexcept {
-        if (bits >= 128 || bits < 0) return Int128(a.val_ < 0 ? -1 : 0); Int128 r; r.val_ = a.val_ >> bits; return r;
+        if (bits >= 128 || bits < 0) return Int128(a.val_ < 0 ? -1 : 0);
+        Int128 r;
+        r.val_ = a.val_ >> bits;
+        return r;
     }
     [[nodiscard]] friend constexpr Int128 operator&(Int128 a, Int128 b) noexcept { Int128 r; r.val_ = a.val_ & b.val_; return r; }
     [[nodiscard]] friend constexpr Int128 operator|(Int128 a, Int128 b) noexcept { Int128 r; r.val_ = a.val_ | b.val_; return r; }
@@ -393,6 +425,8 @@ public:
 };
 
 #endif
+
+ZETA_DIAGNOSTIC_POP
 
 // ── Uint128 division helper (fallback) ───────────────────────────────
 
