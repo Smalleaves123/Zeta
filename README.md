@@ -104,7 +104,21 @@ int main() {
 
 ---
 
-### 2. `zeta/strings/str_cat.h` — `StrCat` / `StrAppend`
+### 2. `zeta/memory/span.h`
+
+`zeta::Span<T>` is a thin alias over `std::span<T>` for non-owning views over contiguous data.
+
+```cpp
+#include <zeta/memory/span.h>
+
+std::vector<int> v = {1, 2, 3};
+zeta::Span<int> s(v);
+auto tail = s.subspan(1);  // view of {2, 3}
+```
+
+---
+
+### 3. `zeta/strings/str_cat.h` — `StrCat` / `StrAppend`
 
 Efficient variadic concatenation. Unlike `a + b + c` (which creates intermediate temporaries), `StrCat` pre-computes the total length and performs **one allocation**.
 
@@ -123,7 +137,7 @@ Supported types: `const char*`, `std::string`, `std::string_view`, `char`, `bool
 
 ---
 
-### 3. `zeta/strings/str_split.h` — `StrSplit`
+### 4. `zeta/strings/str_split.h` — `StrSplit`
 
 Zero-copy split yielding `std::string_view` pieces. No heap allocations, no substring copies.
 
@@ -157,7 +171,7 @@ for (auto p : StrSplit("a:b:c:d:e", ':', MaxSplits_t{3}))
 
 ---
 
-### 4. `zeta/strings/str_join.h` — `StrJoin`
+### 5. `zeta/strings/str_join.h` — `StrJoin`
 
 Join elements of a range with a delimiter. Pre-computes total length for a single allocation.
 
@@ -176,7 +190,7 @@ std::string dash = zeta::StrJoin({"x", "y", "z"}, "-"); // "x-y-z"
 
 ---
 
-### 5. `zeta/strings/str_utils.h` — Predicates, Stripping, Replacement
+### 6. `zeta/strings/str_utils.h` — Predicates, Stripping, Replacement
 
 ```cpp
 #include <zeta/strings/str_utils.h>
@@ -203,7 +217,7 @@ std::string s = zeta::StrReplaceAll("a,b,c", ",", "|");    // "a|b|c"
 
 ---
 
-### 6. `zeta/container/flat_hash_map.h` & `flat_hash_set.h`
+### 7. `zeta/container/flat_hash_map.h` & `flat_hash_set.h`
 
 Swiss Table hash containers. Typically **2–3× faster** than `std::unordered_map` with ~30% less memory.
 
