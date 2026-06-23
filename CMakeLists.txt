@@ -64,6 +64,16 @@ if(ZETA_BUILD_BENCHMARKS)
     add_subdirectory(benchmarks)
 endif()
 
+option(ZETA_BUILD_FUZZERS "Build libFuzzer targets" OFF)
+set(ZETA_FUZZING_ENGINE "-fsanitize=fuzzer,address,undefined"
+    CACHE STRING "Compiler/linker flags used for fuzz targets")
+if(ZETA_BUILD_FUZZERS)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang|GNU")
+        message(FATAL_ERROR "Fuzz targets require a Clang- or GCC-compatible compiler")
+    endif()
+    add_subdirectory(fuzz)
+endif()
+
 # ── Install ──────────────────────────────────────────────────────
 include(GNUInstallDirs)
 # Install all public headers (preserve directory structure under zeta/)

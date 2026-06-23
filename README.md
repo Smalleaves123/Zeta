@@ -32,6 +32,18 @@ cmake --build build
 ctest --test-dir build                    # 7 test suites, 100% pass
 ```
 
+### Fuzzing
+
+```bash
+cmake -S . -B build-fuzz -DZETA_BUILD_FUZZERS=ON -DZETA_BUILD_TESTS=OFF
+cmake --build build-fuzz
+./build-fuzz/fuzz/strings_split_fuzz
+./build-fuzz/fuzz/strings_utils_fuzz
+```
+
+Override `ZETA_FUZZING_ENGINE` if your local toolchain needs different
+sanitizer or libFuzzer flags.
+
 **Requirements:** C++20, CMake 3.20+. The library is header-only — just add `-I<path-to-zeta>` to your build.
 
 **SIMD backends** are auto-detected:
