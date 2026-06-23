@@ -14,6 +14,7 @@
 #include <thread>
 
 #include "zeta/log/internal/severity.h"
+#include "zeta/time/timestamp.h"
 
 namespace zeta {
 namespace log_internal {
@@ -23,28 +24,7 @@ namespace log_internal {
 // ═══════════════════════════════════════════════════════════════════════
 
 [[nodiscard]] inline std::string FormatTimestamp() {
-    using clock = std::chrono::system_clock;
-    auto now = clock::now();
-    auto time = clock::to_time_t(now);
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-        now.time_since_epoch()) % 1000;
-
-    std::tm tm{};
-#if defined(_WIN32)
-    localtime_s(&tm, &time);
-#else
-    localtime_r(&time, &tm);
-#endif
-
-    char buf[32];
-    std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
-
-    std::ostringstream out;
-    out << buf << '.';
-    if (ms.count() < 100) out << '0';
-    if (ms.count() < 10) out << '0';
-    out << ms.count();
-    return out.str();
+    return zeta::FormatNow();
 }
 
 struct LogRecordView {
