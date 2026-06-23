@@ -39,10 +39,24 @@ cmake -S . -B build-fuzz -DZETA_BUILD_FUZZERS=ON -DZETA_BUILD_TESTS=OFF
 cmake --build build-fuzz
 ./build-fuzz/fuzz/strings_split_fuzz
 ./build-fuzz/fuzz/strings_utils_fuzz
+./build-fuzz/fuzz/strings_join_fuzz
+./build-fuzz/fuzz/strings_format_fuzz
+./build-fuzz/fuzz/hash_hash_fuzz
+./build-fuzz/fuzz/strings_str_cat_fuzz
+./build-fuzz/fuzz/numeric_int128_fuzz
+./build-fuzz/fuzz/container_inlined_vector_fuzz
+./build-fuzz/fuzz/strings_numbers_fuzz
+./build-fuzz/fuzz/status_status_fuzz
+./build-fuzz/fuzz/status_statusor_fuzz
+./build-fuzz/fuzz/container_btree_map_fuzz
+./build-fuzz/fuzz/random_random_fuzz
 ```
 
 Override `ZETA_FUZZING_ENGINE` if your local toolchain needs different
 sanitizer or libFuzzer flags.
+
+More detailed local workflow and corpus layout: [fuzz/README.md](./fuzz/README.md).
+OSS-Fuzz bootstrap files live in `fuzz/project.yaml` and `fuzz/oss_fuzz_build.sh`.
 
 **Requirements:** C++20, CMake 3.20+. The library is header-only — just add `-I<path-to-zeta>` to your build.
 
