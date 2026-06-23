@@ -116,7 +116,7 @@ TEST_CASE("Cord: RemovePrefix trims from the front", "[cord]") {
     cord.RemovePrefix(7);
 
     REQUIRE(cord.size() == 7);
-    REQUIRE(cord.Flatten() == "etagamma");
+    REQUIRE(cord.Flatten() == "tagamma");
 }
 
 TEST_CASE("Cord: RemovePrefix clears when oversized", "[cord]") {
@@ -148,4 +148,51 @@ TEST_CASE("Cord: prefix and suffix removal can be combined", "[cord]") {
     cord.RemovePrefix(2);
     cord.RemoveSuffix(2);
     REQUIRE(cord.Flatten() == "hello world");
+}
+
+TEST_CASE("Cord: Subcord extracts middle range", "[cord]") {
+    zeta::Cord cord;
+    cord.Append("alpha");
+    cord.Append("beta");
+    cord.Append("gamma");
+
+    zeta::Cord sub = cord.Subcord(3, 6);
+    REQUIRE(sub.Flatten() == "habeta");
+}
+
+TEST_CASE("Cord: Subcord to end", "[cord]") {
+    zeta::Cord cord("hello world");
+    REQUIRE(cord.Subcord(6).Flatten() == "world");
+}
+
+TEST_CASE("Cord: Subcord out of range is empty", "[cord]") {
+    zeta::Cord cord("hello");
+    REQUIRE(cord.Subcord(99).empty());
+    REQUIRE(cord.Subcord(1, 0).empty());
+}
+
+TEST_CASE("Cord: StartsWith across chunk boundaries", "[cord]") {
+    zeta::Cord cord;
+    cord.Append("alpha");
+    cord.Append("beta");
+    cord.Append("gamma");
+
+    REQUIRE(cord.StartsWith("alph"));
+    REQUIRE(cord.StartsWith("alphabeta"));
+    REQUIRE(cord.StartsWith("alphabetagamma"));
+    REQUIRE(!cord.StartsWith("beta"));
+    REQUIRE(!cord.StartsWith("alphabetagammaz"));
+}
+
+TEST_CASE("Cord: EndsWith across chunk boundaries", "[cord]") {
+    zeta::Cord cord;
+    cord.Append("alpha");
+    cord.Append("beta");
+    cord.Append("gamma");
+
+    REQUIRE(cord.EndsWith("gamma"));
+    REQUIRE(cord.EndsWith("betagamma"));
+    REQUIRE(cord.EndsWith("alphabetagamma"));
+    REQUIRE(!cord.EndsWith("alpha"));
+    REQUIRE(!cord.EndsWith("zalphabetagamma"));
 }

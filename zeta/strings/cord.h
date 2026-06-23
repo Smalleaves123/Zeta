@@ -75,6 +75,48 @@ public:
         }
     }
 
+    [[nodiscard]] Cord Subcord(std::size_t pos,
+                               std::size_t len = static_cast<std::size_t>(-1)) const {
+        Cord out;
+        if (pos >= size_ || len == 0) return out;
+
+        std::size_t remaining = std::min(len, size_ - pos);
+        std::size_t offset = pos;
+        for (const auto& chunk : chunks_) {
+            if (remaining == 0) break;
+            if (offset >= chunk.size()) {
+                offset -= chunk.size();
+                continue;
+            }
+
+            std::size_t take = std::min(remaining, chunk.size() - offset);
+            out.Append(std::string_view(chunk).substr(offset, take));
+            remaining -= take;
+            offset = 0;
+        }
+        return out;
+    }
+
+    [[nodiscard]] bool StartsWith(std::string_view prefix) const {
+        if (prefix.size() > size_) return false;
+        std::size_t matched = 0;
+        for (const auto& chunk : chunks_) {
+            if (matched == prefix.size()) return true;
+            std::size_t take = std::min(prefix.size() - matched, chunk.size());
+            if (std::string_view(chunk).substr(0, take) !=
+                prefix.substr(matched, take)) {
+                return false;
+            }
+            matched += take;
+        }
+        return matched == prefix.size();
+    }
+
+    [[nodiscard]] bool EndsWith(std::string_view suffix) const {
+        if (suffix.size() > size_) return false;
+        return Subcord(size_ - suffix.size()).Flatten() == suffix;
+    }
+
     void Append(std::string_view text) {
         if (text.empty()) return;
         chunks_.emplace_back(text);
