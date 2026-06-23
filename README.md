@@ -32,6 +32,17 @@ cmake --build build
 ctest --test-dir build                    # 7 test suites, 100% pass
 ```
 
+### Examples
+
+```bash
+cmake -S . -B build/examples -DZETA_BUILD_EXAMPLES=ON -DZETA_BUILD_TESTS=OFF
+cmake --build build/examples
+./build/examples/examples/zeta_example_quickstart
+./build/examples/examples/zeta_example_strings_pipeline
+```
+
+More example programs: [examples/README.md](./examples/README.md).
+
 ### Fuzzing
 
 ```bash

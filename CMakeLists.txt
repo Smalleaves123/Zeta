@@ -64,6 +64,11 @@ if(ZETA_BUILD_BENCHMARKS)
     add_subdirectory(benchmarks)
 endif()
 
+option(ZETA_BUILD_EXAMPLES "Build example programs" OFF)
+if(ZETA_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
+
 option(ZETA_BUILD_FUZZERS "Build libFuzzer targets" OFF)
 set(ZETA_FUZZING_ENGINE "-fsanitize=fuzzer,address,undefined"
     CACHE STRING "Compiler/linker flags used for fuzz targets")
