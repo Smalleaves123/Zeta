@@ -262,7 +262,7 @@ public:
     [[nodiscard]] bool ok() const noexcept { return status_.ok(); }
     [[nodiscard]] explicit operator bool() const noexcept { return ok(); }
 
-    [[nodiscard]] constexpr bool has_value() const noexcept { return ok(); }
+    [[nodiscard]] bool has_value() const noexcept { return ok(); }
 
     [[nodiscard]] const Status& status() const& noexcept { return status_; }
     [[nodiscard]] Status       status() &&      noexcept { return std::move(status_); }

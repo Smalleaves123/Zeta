@@ -39,11 +39,19 @@ TEST_CASE("clock: ToDuration is reversible", "[clock][monotonic]") {
 
 TEST_CASE("clock: sleep between gives measurable duration", "[clock][monotonic]") {
     auto t1 = zeta::Clock::Now();
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    zeta::Clock::SleepFor(Duration::Milliseconds(10));
     auto t2 = zeta::Clock::Now();
 
     Duration d = zeta::Clock::Between(t1, t2);
     REQUIRE(d.ToNanoseconds() > 0);
+}
+
+TEST_CASE("clock: SleepUntil reaches target", "[clock][monotonic]") {
+    auto t1 = zeta::Clock::Now();
+    auto target = t1 + Duration::Milliseconds(5).ToNanoseconds();
+    zeta::Clock::SleepUntil(target);
+    auto t2 = zeta::Clock::Now();
+    REQUIRE(t2 >= target);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -61,4 +69,12 @@ TEST_CASE("real_clock: ToDuration round-trip", "[clock][wall]") {
     auto now = zeta::RealClock::Now();
     Duration d = zeta::RealClock::ToDuration(now);
     REQUIRE(d.ToRaw() == now);
+}
+
+TEST_CASE("real_clock: SleepUntil returns after deadline", "[clock][wall]") {
+    auto start = zeta::RealClock::Now();
+    auto target = start + Duration::Milliseconds(5).ToNanoseconds();
+    zeta::RealClock::SleepUntil(target);
+    auto end = zeta::RealClock::Now();
+    REQUIRE(end >= target);
 }

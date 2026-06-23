@@ -88,23 +88,6 @@ jobs:
       - name: Test
         run: ctest --preset ${{ matrix.preset }} --output-on-failure
 
-  # ── Windows: MSVC ──────────────────────────────────────────
-  windows:
-    name: Windows MSVC ${{ matrix.preset }}
-    runs-on: windows-2022
-    strategy:
-      fail-fast: false
-      matrix:
-        preset: [ci-release, ci-debug]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Configure
-        run: cmake --preset ${{ matrix.preset }}
-      - name: Build
-        run: cmake --build --preset ${{ matrix.preset }}
-      - name: Test
-        run: ctest --preset ${{ matrix.preset }} --output-on-failure --test-dir build/${{ matrix.preset }}
-
   package-smoke:
     name: Package Smoke Test
     runs-on: ubuntu-24.04

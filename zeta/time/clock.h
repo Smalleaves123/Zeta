@@ -19,6 +19,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <thread>
 
 #include "zeta/time/duration.h"
 
@@ -61,6 +62,19 @@ public:
                                           time_point b) noexcept {
         return Duration::FromRaw(b - a);
     }
+
+    /// Sleep for a monotonic duration.
+    static void SleepFor(Duration d) {
+        if (d <= Duration()) return;
+        std::this_thread::sleep_for(d.ToChrono<std::chrono::nanoseconds>());
+    }
+
+    /// Sleep until a monotonic target time point.
+    static void SleepUntil(time_point t) {
+        time_point now = Now();
+        if (t <= now) return;
+        SleepFor(Between(now, t));
+    }
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -90,6 +104,14 @@ public:
     /// Convert to Duration (from Unix epoch).
     [[nodiscard]] static Duration ToDuration(time_point t) noexcept {
         return Duration::FromRaw(t);
+    }
+
+    /// Sleep until a wall-clock target time point.
+    static void SleepUntil(time_point t) {
+        auto d = std::chrono::duration_cast<std::chrono::system_clock::duration>(
+            std::chrono::nanoseconds(t));
+        auto tp = std::chrono::system_clock::time_point(d);
+        std::this_thread::sleep_until(tp);
     }
 };
 
