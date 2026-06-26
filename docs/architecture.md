@@ -14,9 +14,29 @@ monolithic infrastructure library.
 
 ## Stable Module Families
 
-- Core utility surface: `status`, `strings`, `time`, `memory`, `container`
-- Supporting modules: `hash`, `random`, `numeric`, `synchronization`, `flags`
-- Low-level / compatibility modules: `bits`, `cleanup`, `meta`, `utility`
+### Stable Public Modules
+
+- `status`
+- `strings`
+- `time`
+- `memory`
+- `container`
+- `hash`
+- `random`
+
+### Low-Level Public Modules
+
+- `bits`
+- `cleanup`
+- `meta`
+- `numeric`
+- `synchronization`
+- `flags`
+- `log`
+
+### Compatibility / Transitional Modules
+
+- `utility`
 
 ## Current Compatibility Posture
 
@@ -30,6 +50,8 @@ When expanding the library:
 - Prefer `memory` or `container` over adding storage helpers to `utility`
 - Prefer `internal/` over polluting top-level public module directories with
   implementation details
+- Prefer adding request-flow time helpers to `time` rather than scattering
+  deadline / stopwatch logic across service code
 
 ## Near-Term Refactor Path
 

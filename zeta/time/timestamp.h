@@ -10,7 +10,6 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
-#include <ctime>
 #include <string>
 
 #include "zeta/time/clock.h"
@@ -21,28 +20,11 @@ enum class TimeZone {
     kLocal,
     kUtc,
 };
+} // namespace zeta
 
-namespace time_internal {
+#include "zeta/time/internal/format_internal.h"
 
-[[nodiscard]] inline bool BreakDownTime(std::time_t seconds, TimeZone zone,
-                                        std::tm* out) noexcept {
-#if defined(_WIN32)
-    return zone == TimeZone::kUtc ? gmtime_s(out, &seconds) == 0
-                                  : localtime_s(out, &seconds) == 0;
-#else
-    return zone == TimeZone::kUtc ? gmtime_r(&seconds, out) != nullptr
-                                  : localtime_r(&seconds, out) != nullptr;
-#endif
-}
-
-[[nodiscard]] inline std::chrono::system_clock::time_point ToSystemTimePoint(
-    RealClock::time_point t) noexcept {
-    auto d = std::chrono::duration_cast<std::chrono::system_clock::duration>(
-        std::chrono::nanoseconds(t));
-    return std::chrono::system_clock::time_point(d);
-}
-
-} // namespace time_internal
+namespace zeta {
 
 /// Format a wall-clock time point as `YYYY-MM-DD HH:MM:SS.mmm`.
 [[nodiscard]] inline std::string FormatTimestamp(

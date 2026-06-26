@@ -4,6 +4,7 @@
 /// @file   status/status_builder.h
 /// @brief  Helpers for enriching and inspecting Status values.
 
+#include "zeta/status/internal/message_join.h"
 #include "zeta/status/status.h"
 
 #include <sstream>
@@ -12,24 +13,6 @@
 #include <utility>
 
 namespace zeta {
-
-namespace status_internal {
-
-[[nodiscard]] inline std::string JoinStatusMessage(
-    std::string_view left, std::string_view separator,
-    std::string_view right) {
-    if (left.empty()) return std::string(right);
-    if (right.empty()) return std::string(left);
-
-    std::string out;
-    out.reserve(left.size() + separator.size() + right.size());
-    out.append(left.data(), left.size());
-    out.append(separator.data(), separator.size());
-    out.append(right.data(), right.size());
-    return out;
-}
-
-} // namespace status_internal
 
 [[nodiscard]] inline bool IsCancelled(const Status& status) noexcept {
     return status.code() == StatusCode::kCancelled;
