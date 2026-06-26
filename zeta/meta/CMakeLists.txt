@@ -1,4 +1,4 @@
 # meta/ module — supplementary type traits
-target_sources(zeta_headers PRIVATE
+zeta_module(meta HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/type_traits.h
 )

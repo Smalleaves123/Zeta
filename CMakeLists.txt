@@ -38,6 +38,7 @@ target_compile_features(zeta INTERFACE cxx_std_20)
 
 # ── Subdirectories ──────────────────────────────────────────────
 add_subdirectory(zeta)
+get_property(ZETA_EXPORT_TARGETS GLOBAL PROPERTY ZETA_EXPORT_TARGETS)
 
 option(ZETA_BUILD_TESTS "Build test suite" ON)
 if(ZETA_BUILD_TESTS)
@@ -98,7 +99,7 @@ write_basic_package_version_file(
     VERSION ${PROJECT_VERSION}
     COMPATIBILITY AnyNewerVersion)
 
-install(TARGETS zeta EXPORT zetaTargets)
+install(TARGETS zeta ${ZETA_EXPORT_TARGETS} EXPORT zetaTargets)
 install(EXPORT zetaTargets
     NAMESPACE zeta::
     FILE zetaTargets.cmake

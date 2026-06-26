@@ -1,5 +1,5 @@
 # memory/ module — function_ref
-target_sources(zeta_headers PRIVATE
+zeta_module(memory HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/function_ref.h
     ${CMAKE_CURRENT_SOURCE_DIR}/span.h
 )

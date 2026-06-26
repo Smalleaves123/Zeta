@@ -1,4 +1,6 @@
 # random/ module — PRNG (Xoshiro256**) and distribution functions
-target_sources(zeta_headers PRIVATE
+zeta_module(random
+    DEPS zeta_bits
+    HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/random.h
 )

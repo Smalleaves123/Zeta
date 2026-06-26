@@ -71,6 +71,39 @@ OSS-Fuzz bootstrap files live in `fuzz/project.yaml` and `fuzz/oss_fuzz_build.sh
 
 **Requirements:** C++20, CMake 3.20+. The library is header-only — just add `-I<path-to-zeta>` to your build.
 
+### CMake Targets
+
+Zeta keeps `zeta::zeta` as a compatibility umbrella target, but the preferred
+integration style is Abseil-like module linking:
+
+```cmake
+find_package(zeta REQUIRED CONFIG)
+
+target_link_libraries(my_app PRIVATE
+    zeta::status
+    zeta::strings
+    zeta::time
+)
+```
+
+Available module targets currently include:
+
+- `zeta::bits`
+- `zeta::cleanup`
+- `zeta::container`
+- `zeta::flags`
+- `zeta::hash`
+- `zeta::log`
+- `zeta::memory`
+- `zeta::meta`
+- `zeta::numeric`
+- `zeta::random`
+- `zeta::status`
+- `zeta::strings`
+- `zeta::synchronization`
+- `zeta::time`
+- `zeta::utility`
+
 **SIMD backends** are auto-detected:
 | Platform | Backend | Probing speed |
 |----------|---------|--------------|
@@ -86,26 +119,41 @@ OSS-Fuzz bootstrap files live in `fuzz/project.yaml` and `fuzz/oss_fuzz_build.sh
 cpp-/
 ├── CMakeLists.txt                    # Top-level build
 ├── zeta/                             # Library root (equivalent to absl/)
-│   ├── memory/
-│   │   └── function_ref.h            # Non-owning callable reference
-│   ├── strings/
-│   │   ├── str_cat.h                 # Variadic string concatenation
-│   │   ├── str_split.h               # Zero-copy string splitting
-│   │   ├── str_join.h                # Efficient string joining
-│   │   ├── str_utils.h               # Predicates, stripping, replacement
-│   │   └── internal/
-│   │       └── alpha_num.h           # Number-to-string conversion helper
-│   └── container/
-│       ├── flat_hash_map.h           # Swiss Table hash map
-│       ├── flat_hash_set.h           # Swiss Table hash set
-│       ├── inlined_vector.h          # Small-buffer-optimized vector
-│       └── internal/
-│           └── raw_hash_set.h        # Swiss Table core (SIMD probing)
-└── tests/                            # Mirrors zeta/ structure
-    ├── memory/function_ref_test.cpp
-    ├── strings/{str_cat,str_split,str_join,str_utils}_test.cpp
-    └── container/{flat_hash_map,inlined_vector}_test.cpp
+│   ├── status/                       # Error model and propagation helpers
+│   ├── strings/                      # Text building, splitting, formatting
+│   │   └── internal/                 # Non-public string implementation detail
+│   ├── time/                         # Duration / clock / timestamp primitives
+│   ├── container/                    # Hash and ordered containers
+│   │   └── internal/                 # Container internals, not API-stable
+│   ├── memory/                       # Views and callable adapters
+│   ├── synchronization/              # Mutex / once / notification
+│   ├── hash/                         # Hash framework
+│   ├── random/                       # PRNG and distributions
+│   ├── numeric/                      # Numeric primitives
+│   ├── flags/                        # Command-line flag parsing
+│   ├── log/                          # Lightweight logging
+│   ├── bits/                         # Low-level bit utilities
+│   ├── cleanup/                      # Scope guard utilities
+│   ├── meta/                         # Traits and compile-time helpers
+│   └── utility/                      # Compatibility bucket; shrinking over time
+├── tests/                            # Module-oriented tests
+├── examples/                         # End-user examples
+├── benchmarks/                       # Microbenchmarks
+└── fuzz/                             # Fuzz targets and corpora
 ```
+
+### Structure Direction
+
+The project is intentionally converging on an Abseil-style layout:
+
+- Public headers live under `zeta/<module>/...`
+- Module internals live under `zeta/<module>/internal/...`
+- CMake exposes one target per module
+- `zeta::zeta` remains for compatibility, not as the preferred long-term entry
+
+Modules such as `bits` and `utility` currently remain public for compatibility,
+but new APIs should prefer landing in clearer domain modules like `strings`,
+`status`, `time`, `memory`, or `container`.
 
 ---
 

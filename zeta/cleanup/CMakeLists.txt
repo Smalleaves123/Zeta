@@ -1,4 +1,4 @@
 # cleanup/ module — RAII scope guard
-target_sources(zeta_headers PRIVATE
+zeta_module(cleanup HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/cleanup.h
 )
