@@ -540,26 +540,34 @@ private:
         new_capacity = next_power_of_2(new_capacity);
         if (new_capacity <= capacity_) return;
 
-        int8_t*     old_ctrl     = ctrl_;
-        stored_value_type* old_slots    = slots_;
-        size_t      old_capacity = capacity_;
-        size_t      old_size     = size_;
+        int8_t* old_ctrl = ctrl_;
+        stored_value_type* old_slots = slots_;
+        size_t old_capacity = capacity_;
+        size_t old_size = size_;
 
-        int8_t* new_ctrl = static_cast<int8_t*>(
-            ::operator new(sizeof(int8_t) * (new_capacity + kGroupWidth + 1)));
-        stored_value_type* new_slots = static_cast<stored_value_type*>(
-            ::operator new(sizeof(stored_value_type) * new_capacity));
+        auto delete_ctrl = [](int8_t* p) noexcept { ::operator delete(p); };
+        auto delete_slots = [](stored_value_type* p) noexcept { ::operator delete(p); };
 
-        // Assign to members so prepare_insert sees new layout.
-        ctrl_ = new_ctrl;
-        slots_ = new_slots;
+        std::unique_ptr<int8_t, decltype(delete_ctrl)> new_ctrl_guard(
+            static_cast<int8_t*>(::operator new(sizeof(int8_t) *
+                                                (new_capacity + kGroupWidth + 1))),
+            delete_ctrl);
+        std::unique_ptr<stored_value_type, decltype(delete_slots)> new_slots_guard(
+            static_cast<stored_value_type*>(
+                ::operator new(sizeof(stored_value_type) * new_capacity)),
+            delete_slots);
+
+        // Point the table at the new storage while we populate it, but do not
+        // touch the old storage until the transfer has fully succeeded.
+        ctrl_ = new_ctrl_guard.get();
+        slots_ = new_slots_guard.get();
         capacity_ = new_capacity;
         size_ = 0;
 
         std::memset(ctrl_, kEmpty, new_capacity + kGroupWidth + 1);
 
-        if (old_slots) {
-            try {
+        try {
+            if (old_slots) {
                 for (size_t i = 0; i < old_capacity; ++i) {
                     if (old_ctrl[i] != kEmpty && old_ctrl[i] != kDeleted) {
                         stored_value_type* src = old_slots + i;
@@ -568,28 +576,32 @@ private:
                         ::new (slots_ + pos) stored_value_type(std::move(*src));
                         set_ctrl(pos, static_cast<int8_t>(H2(hv)));
                         ++size_;
-                        src->~stored_value_type();
-                        old_ctrl[i] = kDeleted;  // prevent double-destroy on rollback
                     }
                 }
-            } catch (...) {
-                // Destroy elements already moved into new storage.
-                for (size_t j = 0; j < capacity_; ++j) {
-                    if (ctrl_[j] != kEmpty && ctrl_[j] != kDeleted)
-                        slots_[j].~stored_value_type();
-                }
-                ::operator delete(new_slots);
-                ::operator delete(new_ctrl);
-                // Restore old state.
-                ctrl_     = old_ctrl;
-                slots_    = old_slots;
-                capacity_ = old_capacity;
-                size_     = old_size;
-                throw;
+            }
+        } catch (...) {
+            for (size_t j = 0; j < capacity_; ++j) {
+                if (ctrl_[j] != kEmpty && ctrl_[j] != kDeleted)
+                    slots_[j].~stored_value_type();
+            }
+            ctrl_ = old_ctrl;
+            slots_ = old_slots;
+            capacity_ = old_capacity;
+            size_ = old_size;
+            throw;
+        }
+
+        if (old_slots) {
+            for (size_t i = 0; i < old_capacity; ++i) {
+                if (old_ctrl[i] != kEmpty && old_ctrl[i] != kDeleted)
+                    old_slots[i].~stored_value_type();
             }
             ::operator delete(old_slots);
             ::operator delete(old_ctrl);
         }
+
+        new_ctrl_guard.release();
+        new_slots_guard.release();
     }
 
     void copy_from(const raw_hash_set& other) {

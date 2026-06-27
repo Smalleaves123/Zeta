@@ -2,11 +2,14 @@
 #include "zeta/container/internal/raw_hash_set.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 using namespace std::literals;
 
@@ -303,6 +306,44 @@ struct CollisionHash {
     size_t operator()(const CollisionKey&) const noexcept { return 0; }
 };
 
+struct RehashThrowingItem {
+    int value{0};
+
+    static inline int live_count = 0;
+    static inline int move_calls = 0;
+    static inline int move_throw_after = -1;
+
+    RehashThrowingItem() = default;
+    explicit RehashThrowingItem(int v) : value(v) { ++live_count; }
+    RehashThrowingItem(const RehashThrowingItem&) = delete;
+    RehashThrowingItem(RehashThrowingItem&& other) noexcept(false)
+        : value(other.value) {
+        if (move_throw_after >= 0 && move_calls++ >= move_throw_after) {
+            throw std::runtime_error("move");
+        }
+        ++live_count;
+    }
+    RehashThrowingItem& operator=(const RehashThrowingItem&) = delete;
+    RehashThrowingItem& operator=(RehashThrowingItem&&) = default;
+    ~RehashThrowingItem() { --live_count; }
+
+    static void Reset() {
+        live_count = 0;
+        move_calls = 0;
+        move_throw_after = -1;
+    }
+
+    bool operator==(const RehashThrowingItem& other) const {
+        return value == other.value;
+    }
+};
+
+struct RehashThrowingHash {
+    size_t operator()(const RehashThrowingItem& item) const noexcept {
+        return std::hash<int>{}(item.value);
+    }
+};
+
 TEST_CASE("flat_hash_set: collision-heavy keys", "[set][stress]") {
     zeta::flat_hash_set<CollisionKey, CollisionHash> s;
     constexpr int N = 500;
@@ -321,4 +362,27 @@ TEST_CASE("flat_hash_set: interleaved insert and erase (tombstone)", "[set][stre
     for (int i = 0; i < 100; i += 2)  REQUIRE(!s.contains(i));
     for (int i = 1; i < 100; i += 2)  REQUIRE(s.contains(i));
     for (int i = 0; i < 100; i += 2)  REQUIRE(s.contains(i + 100));
+}
+
+TEST_CASE("flat_hash_set: rehash rolls back on move throw", "[set][exception]") {
+    RehashThrowingItem::Reset();
+    zeta::flat_hash_set<RehashThrowingItem, RehashThrowingHash> s;
+    s.emplace(1);
+    s.emplace(2);
+    s.emplace(3);
+
+    const size_t old_capacity = s.capacity();
+    RehashThrowingItem::move_calls = 0;
+    RehashThrowingItem::move_throw_after = 1;
+
+    REQUIRE_THROWS_AS(s.rehash(old_capacity * 2), std::runtime_error);
+
+    REQUIRE(s.size() == 3);
+    REQUIRE(RehashThrowingItem::live_count == 3);
+
+    std::vector<int> values;
+    values.reserve(s.size());
+    for (const auto& item : s) values.push_back(item.value);
+    std::sort(values.begin(), values.end());
+    REQUIRE(values == std::vector<int>{1, 2, 3});
 }
