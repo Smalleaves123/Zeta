@@ -10,12 +10,30 @@
 ///   zeta::StartsWith("hello world", "hello");       // true
 ///   zeta::StrContains("hello world", "lo wo");      // true
 ///   zeta::StripPrefix("--flag", "--");              // "flag"
+///   zeta::ConsumePrefix(&text, "--");               // mutates text in place
 
 #include <cstring>
 #include <string>
 #include <string_view>
 
 namespace zeta {
+
+namespace strings_internal {
+
+inline char ToLowerAscii(char c) noexcept {
+    return (c >= 'A' && c <= 'Z') ? static_cast<char>(c + ('a' - 'A')) : c;
+}
+
+inline bool EqualsIgnoreCaseImpl(std::string_view a,
+                                 std::string_view b) noexcept {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (ToLowerAscii(a[i]) != ToLowerAscii(b[i])) return false;
+    }
+    return true;
+}
+
+} // namespace strings_internal
 
 // ── Predicates ─────────────────────────────────────────────────────
 
@@ -58,12 +76,18 @@ inline bool EndsWithIgnoreCase(std::string_view text,
     if (text.size() < suffix.size()) return false;
     auto offset = text.size() - suffix.size();
     for (size_t i = 0; i < suffix.size(); ++i) {
-        char a = text[offset + i], b = suffix[i];
-        if (a >= 'A' && a <= 'Z') a += ('a' - 'A');
-        if (b >= 'A' && b <= 'Z') b += ('a' - 'A');
-        if (a != b) return false;
+        if (strings_internal::ToLowerAscii(text[offset + i]) !=
+            strings_internal::ToLowerAscii(suffix[i])) {
+            return false;
+        }
     }
     return true;
+}
+
+/// True if `a` and `b` are equal under ASCII case folding.
+inline bool EqualsIgnoreCase(std::string_view a,
+                             std::string_view b) noexcept {
+    return strings_internal::EqualsIgnoreCaseImpl(a, b);
 }
 
 // ── Stripping ──────────────────────────────────────────────────────
@@ -84,6 +108,24 @@ inline std::string_view StripSuffix(std::string_view text,
     return EndsWith(text, suffix)
                ? text.substr(0, text.size() - suffix.size())
                : text;
+}
+
+/// If `text` starts with `prefix`, removes it in place and returns true.
+/// Otherwise leaves `text` unchanged and returns false.
+inline bool ConsumePrefix(std::string_view* text,
+                          std::string_view prefix) noexcept {
+    if (text == nullptr || !StartsWith(*text, prefix)) return false;
+    text->remove_prefix(prefix.size());
+    return true;
+}
+
+/// If `text` ends with `suffix`, removes it in place and returns true.
+/// Otherwise leaves `text` unchanged and returns false.
+inline bool ConsumeSuffix(std::string_view* text,
+                          std::string_view suffix) noexcept {
+    if (text == nullptr || !EndsWith(*text, suffix)) return false;
+    text->remove_suffix(suffix.size());
+    return true;
 }
 
 /// Removes leading ASCII whitespace (' ', '\\t', '\\n', '\\r', '\\v', '\\f').

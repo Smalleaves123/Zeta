@@ -78,6 +78,19 @@ TEST_CASE("EndsWithIgnoreCase: edge cases", "[str_utils][edge]") {
     REQUIRE(zeta::EndsWithIgnoreCase("ABC", "bc") == true);
 }
 
+TEST_CASE("EqualsIgnoreCase", "[str_utils]") {
+    REQUIRE(zeta::EqualsIgnoreCase("Hello", "hello"));
+    REQUIRE(zeta::EqualsIgnoreCase("ABC123", "abc123"));
+    REQUIRE(!zeta::EqualsIgnoreCase("hello", "hell"));
+    REQUIRE(!zeta::EqualsIgnoreCase("hello", "world"));
+}
+
+TEST_CASE("EqualsIgnoreCase: edge cases", "[str_utils][edge]") {
+    REQUIRE(zeta::EqualsIgnoreCase("", ""));
+    REQUIRE(!zeta::EqualsIgnoreCase("", "a"));
+    REQUIRE(zeta::EqualsIgnoreCase("MiXeD", "mIxEd"));
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Stripping
 // ═══════════════════════════════════════════════════════════════════
@@ -106,6 +119,32 @@ TEST_CASE("StripSuffix: edge cases", "[str_utils][edge]") {
     REQUIRE(zeta::StripSuffix("abc", "") == "abc");     // empty suffix
     REQUIRE(zeta::StripSuffix("", "") == "");           // both empty
     REQUIRE(zeta::StripSuffix("", "a") == "");          // empty text
+}
+
+TEST_CASE("ConsumePrefix", "[str_utils]") {
+    std::string_view text = "--flag=value";
+    REQUIRE(zeta::ConsumePrefix(&text, "--"));
+    REQUIRE(text == "flag=value");
+    REQUIRE(!zeta::ConsumePrefix(&text, "nope"));
+    REQUIRE(text == "flag=value");
+}
+
+TEST_CASE("ConsumeSuffix", "[str_utils]") {
+    std::string_view text = "payload.txt";
+    REQUIRE(zeta::ConsumeSuffix(&text, ".txt"));
+    REQUIRE(text == "payload");
+    REQUIRE(!zeta::ConsumeSuffix(&text, ".md"));
+    REQUIRE(text == "payload");
+}
+
+TEST_CASE("ConsumePrefix / ConsumeSuffix: edge cases", "[str_utils][edge]") {
+    std::string_view text = "abc";
+    REQUIRE(zeta::ConsumePrefix(&text, ""));
+    REQUIRE(text == "abc");
+    REQUIRE(zeta::ConsumeSuffix(&text, ""));
+    REQUIRE(text == "abc");
+    REQUIRE(!zeta::ConsumePrefix(nullptr, "a"));
+    REQUIRE(!zeta::ConsumeSuffix(nullptr, "a"));
 }
 
 TEST_CASE("StripAsciiWhitespace", "[str_utils]") {
