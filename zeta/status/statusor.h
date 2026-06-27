@@ -237,11 +237,11 @@ public:
 
     StatusOr& operator=(const StatusOr& other)
         noexcept(std::is_nothrow_copy_constructible_v<T> &&
-                 std::is_nothrow_copy_assignable_v<T>) {
+                 std::is_nothrow_move_constructible_v<T> &&
+                 std::is_nothrow_swappable_v<T>) {
         if (this != &other) {
-            destroy_value();
-            status_ = other.status_;
-            copy_from(other);
+            StatusOr tmp(other);
+            swap(tmp);
         }
         return *this;
     }
@@ -259,21 +259,10 @@ public:
 
     StatusOr& operator=(StatusOr&& other)
         noexcept(std::is_nothrow_move_constructible_v<T> &&
-                 std::is_nothrow_move_assignable_v<T>) {
+                 std::is_nothrow_swappable_v<T>) {
         if (this != &other) {
-            // Strong exception guarantee: only commit after construction
-            // succeeds.  Construct into a local first (or on the stack),
-            // then swap the state.
-            if (other.has_value_) {
-                T tmp(std::move(*other.value_ptr()));  // may throw
-                destroy_value();
-                status_ = std::move(other.status_);
-                construct_value(std::move(tmp));
-                other.destroy_value();
-            } else {
-                destroy_value();
-                status_ = std::move(other.status_);
-            }
+            StatusOr tmp(std::move(other));
+            swap(tmp);
         }
         return *this;
     }
@@ -287,6 +276,34 @@ public:
 
     /// Equivalent to ok().
     [[nodiscard]] explicit operator bool() const noexcept { return ok(); }
+
+    void swap(StatusOr& other) noexcept(
+        std::is_nothrow_swappable_v<T> &&
+        std::is_nothrow_move_constructible_v<T>) {
+        using std::swap;
+        if (this == &other) return;
+
+        if (has_value_ && other.has_value_) {
+            swap(*value_ptr(), *other.value_ptr());
+            return;
+        }
+
+        if (has_value_ && !other.has_value_) {
+            Status other_status = std::move(other.status_);
+            T tmp(std::move(*value_ptr()));
+            other.construct_value(std::move(tmp));
+            destroy_value();
+            status_ = std::move(other_status);
+            return;
+        }
+
+        if (!has_value_ && other.has_value_) {
+            other.swap(*this);
+            return;
+        }
+
+        swap(status_, other.status_);
+    }
 
     // ── Functional composition ───────────────────────────────────
 

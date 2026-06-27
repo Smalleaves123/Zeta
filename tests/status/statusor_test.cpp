@@ -2,10 +2,50 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+namespace {
+
+struct ThrowingItem {
+    static inline int copy_calls = 0;
+    static inline int move_calls = 0;
+    static inline int copy_throw_after = -1;
+    static inline int move_throw_after = -1;
+
+    int value = 0;
+
+    ThrowingItem() = default;
+    explicit ThrowingItem(int v) : value(v) {}
+
+    ThrowingItem(const ThrowingItem& other) : value(other.value) {
+        if (copy_throw_after >= 0 && copy_calls++ >= copy_throw_after) {
+            throw std::runtime_error("copy");
+        }
+    }
+
+    ThrowingItem(ThrowingItem&& other) noexcept(false) : value(other.value) {
+        if (move_throw_after >= 0 && move_calls++ >= move_throw_after) {
+            throw std::runtime_error("move");
+        }
+        other.value = -1;
+    }
+
+    ThrowingItem& operator=(const ThrowingItem&) = default;
+    ThrowingItem& operator=(ThrowingItem&&) = default;
+
+    static void Reset() {
+        copy_calls = 0;
+        move_calls = 0;
+        copy_throw_after = -1;
+        move_throw_after = -1;
+    }
+};
+
+} // namespace
 
 // ═══════════════════════════════════════════════════════════════════
 // Construction: value
@@ -173,6 +213,28 @@ TEST_CASE("StatusOr: copy assignment", "[statusor][copy]") {
     zeta::StatusOr<int> b(0);
     b = a;
     REQUIRE(b.value() == 42);
+}
+
+TEST_CASE("StatusOr: copy assignment stays valid on throw", "[statusor][copy][exception]") {
+    ThrowingItem::Reset();
+    zeta::StatusOr<ThrowingItem> a(ThrowingItem(1));
+    zeta::StatusOr<ThrowingItem> b(ThrowingItem(9));
+    ThrowingItem::copy_calls = 0;
+    ThrowingItem::copy_throw_after = 0;
+    REQUIRE_THROWS_AS(b = a, std::runtime_error);
+    REQUIRE(b.ok());
+    REQUIRE(b.value().value == 9);
+}
+
+TEST_CASE("StatusOr: move assignment stays valid on throw", "[statusor][move][exception]") {
+    ThrowingItem::Reset();
+    zeta::StatusOr<ThrowingItem> a(ThrowingItem(1));
+    zeta::StatusOr<ThrowingItem> b(ThrowingItem(9));
+    ThrowingItem::move_calls = 0;
+    ThrowingItem::move_throw_after = 0;
+    REQUIRE_THROWS_AS(b = std::move(a), std::runtime_error);
+    REQUIRE(b.ok());
+    REQUIRE(b.value().value == 9);
 }
 
 // ═══════════════════════════════════════════════════════════════════
