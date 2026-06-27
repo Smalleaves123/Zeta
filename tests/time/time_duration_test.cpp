@@ -84,15 +84,20 @@ TEST_CASE("duration: scalar multiply", "[duration][arith]") {
 
 TEST_CASE("duration: scalar divide", "[duration][arith]") {
     REQUIRE((Duration::Seconds(10) / 2).ToSeconds() == 5LL);
+    Duration d = Duration::Seconds(10);
+    d /= 0;
+    REQUIRE(d == Duration::Seconds(10));
 }
 
 TEST_CASE("duration: duration ratio", "[duration][arith]") {
     REQUIRE(Duration::Seconds(10) / Duration::Milliseconds(100) == 100);
+    REQUIRE(Duration::Seconds(10) / Duration() == 0);
 }
 
 TEST_CASE("duration: duration modulo", "[duration][arith]") {
     Duration rem = Duration::Nanoseconds(10) % Duration::Nanoseconds(3);
     REQUIRE(rem.ToNanoseconds() == 1);
+    REQUIRE((Duration::Seconds(10) % Duration()).IsZero());
 }
 
 TEST_CASE("duration: negation", "[duration][arith]") {

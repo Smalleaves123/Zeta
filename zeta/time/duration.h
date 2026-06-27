@@ -148,6 +148,7 @@ public:
     }
     constexpr Duration& operator/=(int64_t divisor) noexcept {
         assert(divisor != 0);
+        if (divisor == 0) return *this;
         ns_ /= divisor;
         return *this;
     }
@@ -172,11 +173,13 @@ public:
     /// Ratio of two durations (truncates toward zero).
     [[nodiscard]] friend constexpr int64_t operator/(Duration a, Duration b) noexcept {
         assert(b.ns_ != 0);
+        if (b.ns_ == 0) return 0;
         return a.ns_ / b.ns_;
     }
     /// Remainder of two durations.
     [[nodiscard]] friend constexpr Duration operator%(Duration a, Duration b) noexcept {
         assert(b.ns_ != 0);
+        if (b.ns_ == 0) return Duration();
         return Duration(a.ns_ % b.ns_, 0);
     }
 
