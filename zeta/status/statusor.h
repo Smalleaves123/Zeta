@@ -20,9 +20,11 @@
 
 #include "zeta/status/status.h"
 
+#include <concepts>
 #include <cassert>
 #include <cstddef>
 #include <cstring>
+#include <functional>
 #include <new>
 #include <string>
 #include <type_traits>
@@ -166,6 +168,143 @@ public:
     /// Equivalent to ok().
     [[nodiscard]] explicit operator bool() const noexcept { return ok(); }
 
+    // ── Functional composition ───────────────────────────────────
+
+    /// Applies `f` to the held value and wraps the result in `StatusOr`.
+    template <typename F>
+        requires std::invocable<F&, T&>
+    [[nodiscard]] auto Map(F&& f) & {
+        using Return = std::remove_cvref_t<std::invoke_result_t<F&, T&>>;
+        if (!ok()) {
+            if constexpr (std::is_void_v<Return>) {
+                return StatusOr<void>(status_);
+            } else {
+                return StatusOr<Return>(status_);
+            }
+        }
+
+        if constexpr (std::is_void_v<Return>) {
+            std::invoke(std::forward<F>(f), *value_ptr());
+            return StatusOr<void>();
+        } else {
+            return StatusOr<Return>(std::invoke(std::forward<F>(f), *value_ptr()));
+        }
+    }
+
+    template <typename F>
+        requires std::invocable<F&, const T&>
+    [[nodiscard]] auto Map(F&& f) const& {
+        using Return = std::remove_cvref_t<std::invoke_result_t<F&, const T&>>;
+        if (!ok()) {
+            if constexpr (std::is_void_v<Return>) {
+                return StatusOr<void>(status_);
+            } else {
+                return StatusOr<Return>(status_);
+            }
+        }
+
+        if constexpr (std::is_void_v<Return>) {
+            std::invoke(std::forward<F>(f), *value_ptr());
+            return StatusOr<void>();
+        } else {
+            return StatusOr<Return>(std::invoke(std::forward<F>(f), *value_ptr()));
+        }
+    }
+
+    template <typename F>
+        requires std::invocable<F&, T&&>
+    [[nodiscard]] auto Map(F&& f) && {
+        using Return = std::remove_cvref_t<std::invoke_result_t<F&, T&&>>;
+        if (!ok()) {
+            if constexpr (std::is_void_v<Return>) {
+                return StatusOr<void>(std::move(status_));
+            } else {
+                return StatusOr<Return>(std::move(status_));
+            }
+        }
+
+        if constexpr (std::is_void_v<Return>) {
+            std::invoke(std::forward<F>(f), std::move(*value_ptr()));
+            return StatusOr<void>();
+        } else {
+            return StatusOr<Return>(
+                std::invoke(std::forward<F>(f), std::move(*value_ptr())));
+        }
+    }
+
+    template <typename F>
+        requires std::invocable<F&, const T&&>
+    [[nodiscard]] auto Map(F&& f) const&& {
+        using Return = std::remove_cvref_t<std::invoke_result_t<F&, const T&&>>;
+        if (!ok()) {
+            if constexpr (std::is_void_v<Return>) {
+                return StatusOr<void>(std::move(status_));
+            } else {
+                return StatusOr<Return>(std::move(status_));
+            }
+        }
+
+        if constexpr (std::is_void_v<Return>) {
+            std::invoke(std::forward<F>(f), std::move(*value_ptr()));
+            return StatusOr<void>();
+        } else {
+            return StatusOr<Return>(
+                std::invoke(std::forward<F>(f), std::move(*value_ptr())));
+        }
+    }
+
+    /// Chains another StatusOr-producing computation.
+    template <typename F>
+        requires std::invocable<F&, T&> &&
+                 std::constructible_from<std::remove_cvref_t<std::invoke_result_t<F&, T&>>, Status>
+    [[nodiscard]] auto AndThen(F&& f) & {
+        using Return = std::remove_cvref_t<std::invoke_result_t<F&, T&>>;
+        if (!ok()) return Return(status_);
+        return std::invoke(std::forward<F>(f), *value_ptr());
+    }
+
+    template <typename F>
+        requires std::invocable<F&, const T&> &&
+                 std::constructible_from<std::remove_cvref_t<std::invoke_result_t<F&, const T&>>, Status>
+    [[nodiscard]] auto AndThen(F&& f) const& {
+        using Return = std::remove_cvref_t<std::invoke_result_t<F&, const T&>>;
+        if (!ok()) return Return(status_);
+        return std::invoke(std::forward<F>(f), *value_ptr());
+    }
+
+    template <typename F>
+        requires std::invocable<F&, T&&> &&
+                 std::constructible_from<std::remove_cvref_t<std::invoke_result_t<F&, T&&>>, Status>
+    [[nodiscard]] auto AndThen(F&& f) && {
+        using Return = std::remove_cvref_t<std::invoke_result_t<F&, T&&>>;
+        if (!ok()) return Return(std::move(status_));
+        return std::invoke(std::forward<F>(f), std::move(*value_ptr()));
+    }
+
+    template <typename F>
+        requires std::invocable<F&, const T&&> &&
+                 std::constructible_from<std::remove_cvref_t<std::invoke_result_t<F&, const T&&>>, Status>
+    [[nodiscard]] auto AndThen(F&& f) const&& {
+        using Return = std::remove_cvref_t<std::invoke_result_t<F&, const T&&>>;
+        if (!ok()) return Return(std::move(status_));
+        return std::invoke(std::forward<F>(f), std::move(*value_ptr()));
+    }
+
+    /// Recovers from an error and keeps the same StatusOr type.
+    template <typename F>
+        requires std::invocable<F&, const Status&>
+    [[nodiscard]] StatusOr OrElse(F&& f) const& {
+        if (ok()) return *this;
+        return StatusOr(std::invoke(std::forward<F>(f), status_));
+    }
+
+    template <typename F>
+        requires std::invocable<F&, Status>
+    [[nodiscard]] StatusOr OrElse(F&& f) && {
+        if (ok()) return std::move(*this);
+        return StatusOr(std::invoke(std::forward<F>(f), std::move(status_)));
+    }
+
     /// Returns the held value if ok(), otherwise returns `default_value`.
     template <typename U>
         requires std::is_copy_constructible_v<T>
@@ -263,6 +402,80 @@ public:
     [[nodiscard]] explicit operator bool() const noexcept { return ok(); }
 
     [[nodiscard]] bool has_value() const noexcept { return ok(); }
+
+    // ── Functional composition ───────────────────────────────────
+
+    template <typename F>
+        requires std::invocable<F&>
+    [[nodiscard]] auto Map(F&& f) const& {
+        using Return = std::remove_cvref_t<std::invoke_result_t<F&>>;
+        if (!ok()) {
+            if constexpr (std::is_void_v<Return>) {
+                return StatusOr<void>(status_);
+            } else {
+                return StatusOr<Return>(status_);
+            }
+        }
+
+        if constexpr (std::is_void_v<Return>) {
+            std::invoke(std::forward<F>(f));
+            return StatusOr<void>();
+        } else {
+            return StatusOr<Return>(std::invoke(std::forward<F>(f)));
+        }
+    }
+
+    template <typename F>
+        requires std::invocable<F&>
+    [[nodiscard]] auto Map(F&& f) && {
+        using Return = std::remove_cvref_t<std::invoke_result_t<F&>>;
+        if (!ok()) {
+            if constexpr (std::is_void_v<Return>) {
+                return StatusOr<void>(std::move(status_));
+            } else {
+                return StatusOr<Return>(std::move(status_));
+            }
+        }
+
+        if constexpr (std::is_void_v<Return>) {
+            std::invoke(std::forward<F>(f));
+            return StatusOr<void>();
+        } else {
+            return StatusOr<Return>(std::invoke(std::forward<F>(f)));
+        }
+    }
+
+    template <typename F>
+        requires std::invocable<F&> &&
+                 std::constructible_from<std::remove_cvref_t<std::invoke_result_t<F&>>, Status>
+    [[nodiscard]] auto AndThen(F&& f) const& {
+        using Return = std::remove_cvref_t<std::invoke_result_t<F&>>;
+        if (!ok()) return Return(status_);
+        return std::invoke(std::forward<F>(f));
+    }
+
+    template <typename F>
+        requires std::invocable<F&> &&
+                 std::constructible_from<std::remove_cvref_t<std::invoke_result_t<F&>>, Status>
+    [[nodiscard]] auto AndThen(F&& f) && {
+        using Return = std::remove_cvref_t<std::invoke_result_t<F&>>;
+        if (!ok()) return Return(std::move(status_));
+        return std::invoke(std::forward<F>(f));
+    }
+
+    template <typename F>
+        requires std::invocable<F&, const Status&>
+    [[nodiscard]] StatusOr<void> OrElse(F&& f) const& {
+        if (ok()) return *this;
+        return StatusOr<void>(std::invoke(std::forward<F>(f), status_));
+    }
+
+    template <typename F>
+        requires std::invocable<F&, Status>
+    [[nodiscard]] StatusOr<void> OrElse(F&& f) && {
+        if (ok()) return std::move(*this);
+        return StatusOr<void>(std::invoke(std::forward<F>(f), std::move(status_)));
+    }
 
     [[nodiscard]] const Status& status() const& noexcept { return status_; }
     [[nodiscard]] Status       status() &&      noexcept { return std::move(status_); }

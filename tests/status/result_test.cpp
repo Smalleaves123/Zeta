@@ -33,3 +33,16 @@ TEST_CASE("Result: void alias compiles", "[result]") {
     REQUIRE(r.ok());
     r.value_or();
 }
+
+TEST_CASE("Result: supports functional composition", "[result][compose]") {
+    zeta::Result<int> r(10);
+    auto mapped = r.Map([](int v) { return v + 5; });
+    REQUIRE(mapped.ok());
+    REQUIRE(mapped.value() == 15);
+
+    auto chained = mapped.AndThen([](int v) {
+        return zeta::Result<std::string>(std::to_string(v));
+    });
+    REQUIRE(chained.ok());
+    REQUIRE(chained.value() == "15");
+}

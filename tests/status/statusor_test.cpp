@@ -219,6 +219,38 @@ TEST_CASE("StatusOr: value path via propagation pattern", "[statusor][pattern]")
     REQUIRE(*r == "43");
 }
 
+TEST_CASE("StatusOr: Map transforms held values", "[statusor][map]") {
+    zeta::StatusOr<int> r(21);
+    auto mapped = r.Map([](int v) { return v * 2; });
+    REQUIRE(mapped.ok());
+    REQUIRE(mapped.value() == 42);
+}
+
+TEST_CASE("StatusOr: Map propagates errors unchanged", "[statusor][map]") {
+    zeta::StatusOr<int> r(zeta::NotFoundError("missing"));
+    auto mapped = r.Map([](int v) { return v * 2; });
+    REQUIRE(!mapped.ok());
+    REQUIRE(mapped.status().code() == zeta::StatusCode::kNotFound);
+}
+
+TEST_CASE("StatusOr: AndThen chains success paths", "[statusor][and_then]") {
+    zeta::StatusOr<int> r(41);
+    auto chained = r.AndThen([](int v) {
+        return zeta::StatusOr<std::string>(std::to_string(v + 1));
+    });
+    REQUIRE(chained.ok());
+    REQUIRE(chained.value() == "42");
+}
+
+TEST_CASE("StatusOr: OrElse recovers from errors", "[statusor][or_else]") {
+    zeta::StatusOr<int> r(zeta::UnavailableError("transient"));
+    auto recovered = r.OrElse([](const zeta::Status&) {
+        return 7;
+    });
+    REQUIRE(recovered.ok());
+    REQUIRE(recovered.value() == 7);
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Move-only type
 // ═══════════════════════════════════════════════════════════════════
@@ -284,6 +316,22 @@ TEST_CASE("StatusOr<void>: propagation pattern", "[statusor][void]") {
     if (!r.ok()) {
         REQUIRE(r.status().code() == zeta::StatusCode::kNotFound);
     }
+}
+
+TEST_CASE("StatusOr<void>: Map can produce a value", "[statusor][void][map]") {
+    zeta::StatusOr<void> r;
+    auto mapped = r.Map([] { return 9; });
+    REQUIRE(mapped.ok());
+    REQUIRE(mapped.value() == 9);
+}
+
+TEST_CASE("StatusOr<void>: AndThen can continue a success-only flow", "[statusor][void][and_then]") {
+    zeta::StatusOr<void> r;
+    auto chained = r.AndThen([] {
+        return zeta::StatusOr<std::string>("done");
+    });
+    REQUIRE(chained.ok());
+    REQUIRE(chained.value() == "done");
 }
 
 // ═══════════════════════════════════════════════════════════════════
