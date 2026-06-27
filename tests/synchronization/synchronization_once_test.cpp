@@ -3,6 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <atomic>
+#include <stdexcept>
 #include <thread>
 #include <vector>
 
@@ -41,4 +42,22 @@ TEST_CASE("once: two separate flags", "[sync][once]") {
 
     zeta::CallOnce(b, [&] { ++count; });
     REQUIRE(count == 2);
+}
+
+TEST_CASE("once: exception marks flag as done", "[sync][once][exception]") {
+    zeta::OnceFlag flag;
+    int attempts = 0;
+
+    auto fn = [&] {
+        ++attempts;
+        throw std::runtime_error("init failed");
+    };
+
+    REQUIRE_THROWS_AS(zeta::CallOnce(flag, fn), std::runtime_error);
+    try {
+        zeta::CallOnce(flag, fn);
+    } catch (...) {
+        FAIL("CallOnce retried after exception");
+    }
+    REQUIRE(attempts == 1);
 }

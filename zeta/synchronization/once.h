@@ -41,6 +41,7 @@ void CallOnce(OnceFlag& flag, F&& fn) noexcept(noexcept(fn())) {
     if (flag.state_.load(std::memory_order_acquire) == 2) return;
     std::lock_guard<std::mutex> lock(flag.mu_);
     if (flag.state_.load(std::memory_order_relaxed) == 0) {
+        flag.state_.store(1, std::memory_order_relaxed);
         fn();
         flag.state_.store(2, std::memory_order_release);
     }
