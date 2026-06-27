@@ -11,6 +11,9 @@ add_subdirectory(bits)
 # ── base/ ──────────────────────────────────────────────────────────
 add_subdirectory(base)
 
+# ── types/ ─────────────────────────────────────────────────────────
+add_subdirectory(types)
+
 # ── cleanup/ ───────────────────────────────────────────────────────
 add_subdirectory(cleanup)
 

@@ -1,6 +1,7 @@
 #include "zeta/base/as_const.h"
 #include "zeta/base/ignore.h"
 #include "zeta/base/in_place.h"
+#include "zeta/base/macros.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -22,5 +23,13 @@ TEST_CASE("base: ignore accepts arbitrary values", "[base][ignore]") {
     zeta::ignore = 42;
     zeta::ignore = "discard me";
     zeta::ignore = 3.14;
+    SUCCEED();
+}
+
+TEST_CASE("base: macros provide common portability helpers", "[base][macros]") {
+    int value = 5;
+    REQUIRE(ZETA_LIKELY(value == 5));
+    REQUIRE(!ZETA_UNLIKELY(value == 5 && false));
+    ZETA_UNUSED(value);
     SUCCEED();
 }
