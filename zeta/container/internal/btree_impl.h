@@ -227,8 +227,22 @@ public:
     void erase(iterator it) {
         Node* node = it.node_;
         int pos = it.pos_;
-        node->values.erase(node->values.begin() + pos);
-        --size_;
+        if (!node->is_leaf()) {
+            const key_type doomed_key = node->key(static_cast<size_t>(pos));
+            Btree rebuilt;
+            key_compare cmp;
+            for (auto cur = begin(); cur != end(); ++cur) {
+                const key_type& cur_key = Params::get_key(*cur);
+                if (!cmp(cur_key, doomed_key) && !cmp(doomed_key, cur_key)) {
+                    continue;
+                }
+                rebuilt.insert(*cur);
+            }
+            root_ = std::move(rebuilt.root_);
+            size_ = rebuilt.size_;
+            return;
+        }
+        erase_leaf_value(node, static_cast<size_t>(pos));
         // Note: does not rebalance underfull nodes.  This is a simplified
         // B-tree suitable for typical workloads; full rebalancing is rare
         // in practice and omitted for clarity.
@@ -312,6 +326,11 @@ private:
         for (size_t i = 0; i < node->values.size(); ++i)
             if (cmp(k, node->key(i))) return i;
         return node->values.size();
+    }
+
+    void erase_leaf_value(Node* node, size_t pos) {
+        node->values.erase(node->values.begin() + static_cast<ptrdiff_t>(pos));
+        --size_;
     }
 
     static void insert_into_node(Node* node, value_type v) {

@@ -83,6 +83,20 @@ TEST_CASE("btree_map: large insert", "[btree][map]") {
     }
 }
 
+TEST_CASE("btree_map: erase from internal node keeps ordering intact", "[btree][map][erase]") {
+    zeta::btree_map<int, int> m;
+    constexpr int N = 200;
+    for (int i = 0; i < N; ++i) m.insert({i, i});
+
+    REQUIRE(m.erase(100) == 1);
+    REQUIRE(!m.contains(100));
+    REQUIRE(m.size() == N - 1);
+    REQUIRE(m.contains(99));
+    REQUIRE(m.contains(101));
+    REQUIRE(m.contains(32));
+    REQUIRE(m.contains(65));
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // btree_set
 // ═══════════════════════════════════════════════════════════════════════
