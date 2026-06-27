@@ -3,9 +3,11 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
+#include <bit>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <set>
 #include <vector>
 
@@ -128,10 +130,16 @@ TEST_CASE("Uniform<int64_t>: large 64-bit range", "[random][uniform]") {
 
 TEST_CASE("Uniform<uint64_t>: full 64-bit range", "[random][uniform]") {
     zeta::BitGen gen(88);
-    // Just verify it doesn't crash / compile
-    uint64_t v = zeta::Uniform<uint64_t>(gen, 0, UINT64_MAX);
-    (void)v;
-    SUCCEED("full 64-bit range compiles");
+    zeta::BitGen expected(88);
+    REQUIRE(zeta::Uniform<uint64_t>(gen, 0, UINT64_MAX) == expected());
+    REQUIRE(zeta::Uniform<uint64_t>(gen, 0, UINT64_MAX) == expected());
+}
+
+TEST_CASE("Uniform<int>: full signed range", "[random][uniform]") {
+    zeta::BitGen gen(1234);
+    zeta::BitGen expected(1234);
+    REQUIRE(zeta::Uniform<int>(gen, std::numeric_limits<int>::lowest(), std::numeric_limits<int>::max()) ==
+            std::bit_cast<int>(static_cast<uint32_t>(expected())));
 }
 
 // ═══════════════════════════════════════════════════════════════════

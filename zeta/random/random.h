@@ -150,9 +150,18 @@ T Uniform(BitGen& gen, T a, T b) {
 
     if constexpr (std::is_integral_v<T>) {
         using UInt = std::make_unsigned_t<T>;
-        UInt range = static_cast<UInt>(b) - static_cast<UInt>(a);
-        uint64_t r = random_internal::uniform_uint64(gen, static_cast<uint64_t>(range) + 1);
-        return static_cast<T>(static_cast<UInt>(a) + static_cast<UInt>(r));
+        if (a == std::numeric_limits<T>::lowest() && b == std::numeric_limits<T>::max()) {
+            if constexpr (std::is_unsigned_v<T>) {
+                return static_cast<T>(gen());
+            } else {
+                return std::bit_cast<T>(static_cast<UInt>(gen()));
+            }
+        }
+
+        UInt low = static_cast<UInt>(a);
+        UInt span = static_cast<UInt>(b) - low;
+        uint64_t r = random_internal::uniform_uint64(gen, static_cast<uint64_t>(span) + 1);
+        return static_cast<T>(low + static_cast<UInt>(r));
     } else {
         // Floating point: [a, b) with 53 bits of precision.
         constexpr uint64_t kMantissaBits = 53;
