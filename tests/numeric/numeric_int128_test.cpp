@@ -193,6 +193,11 @@ TEST_CASE("int128: bitwise operations", "[int128][arith]") {
     REQUIRE(~Int128(0) == Int128(-1));
 }
 
+TEST_CASE("int128: left shift preserves bit pattern for negatives", "[int128][arith]") {
+    REQUIRE((Int128(-1) << 1) == Int128(-2));
+    REQUIRE((Int128(1) << 127) == Int128::FromPair(std::numeric_limits<int64_t>::min(), 0));
+}
+
 // ── Comparison ────────────────────────────────────────────────────
 
 TEST_CASE("int128: comparison with negatives", "[int128][cmp]") {

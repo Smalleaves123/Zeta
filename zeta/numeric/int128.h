@@ -288,7 +288,7 @@ public:
     [[nodiscard]] friend constexpr Int128 operator<<(Int128 a, int bits) noexcept {
         if (bits >= 128 || bits < 0) return Int128(0);
         Int128 r;
-        r.val_ = a.val_ << bits;
+        r.val_ = static_cast<__int128>(static_cast<__uint128_t>(a.val_) << bits);
         return r;
     }
     [[nodiscard]] friend constexpr Int128 operator>>(Int128 a, int bits) noexcept {
