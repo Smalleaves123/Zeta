@@ -103,15 +103,30 @@ public:
 
     explicit InlinedVector(size_t count, const T& value = T{}) {
         reserve(count);
-        for (size_t i = 0; i < count; ++i)
-            ::new (data_ + i) T(value);
-        size_ = count;
+        try {
+            for (size_t i = 0; i < count; ++i) {
+                ::new (data_ + size_) T(value);
+                ++size_;
+            }
+        } catch (...) {
+            for (size_t j = 0; j < size_; ++j) data_[j].~T();
+            if (!is_inline()) ::operator delete(data_);
+            throw;
+        }
     }
 
     InlinedVector(std::initializer_list<T> ilist) {
         reserve(ilist.size());
-        for (const T& v : ilist)
-            ::new (data_ + size_++) T(v);
+        try {
+            for (const T& v : ilist) {
+                ::new (data_ + size_) T(v);
+                ++size_;
+            }
+        } catch (...) {
+            for (size_t j = 0; j < size_; ++j) data_[j].~T();
+            if (!is_inline()) ::operator delete(data_);
+            throw;
+        }
     }
 
     ~InlinedVector() {
@@ -121,18 +136,26 @@ public:
 
     InlinedVector(const InlinedVector& other) {
         reserve(other.size_);
-        for (size_t i = 0; i < other.size_; ++i)
-            ::new (data_ + i) T(other.data_[i]);
-        size_ = other.size_;
+        try {
+            for (size_t i = 0; i < other.size_; ++i) {
+                ::new (data_ + size_) T(other.data_[i]);
+                ++size_;
+            }
+        } catch (...) {
+            for (size_t j = 0; j < size_; ++j) data_[j].~T();
+            if (!is_inline()) ::operator delete(data_);
+            throw;
+        }
     }
 
     InlinedVector& operator=(const InlinedVector& other) {
         if (this != &other) {
             clear();
             reserve(other.size_);
-            for (size_t i = 0; i < other.size_; ++i)
-                ::new (data_ + i) T(other.data_[i]);
-            size_ = other.size_;
+            for (size_t i = 0; i < other.size_; ++i) {
+                ::new (data_ + size_) T(other.data_[i]);
+                ++size_;
+            }
         }
         return *this;
     }
@@ -141,9 +164,15 @@ public:
         noexcept(std::is_nothrow_move_constructible_v<T>) {
         if (other.is_inline()) {
             // Move inline elements one by one
-            for (size_t i = 0; i < other.size_; ++i)
-                ::new (inline_ptr() + i) T(std::move(other.inline_ptr()[i]));
-            size_ = other.size_;
+            try {
+                for (size_t i = 0; i < other.size_; ++i) {
+                    ::new (inline_ptr() + size_) T(std::move(other.inline_ptr()[i]));
+                    ++size_;
+                }
+            } catch (...) {
+                for (size_t j = 0; j < size_; ++j) inline_ptr()[j].~T();
+                throw;
+            }
             other.destroy_inline();
         } else {
             // Steal heap pointer
@@ -165,9 +194,10 @@ public:
             if (other.is_inline()) {
                 data_     = inline_ptr();
                 capacity_ = N;
-                for (size_t i = 0; i < other.size_; ++i)
-                    ::new (data_ + i) T(std::move(other.inline_ptr()[i]));
-                size_ = other.size_;
+                for (size_t i = 0; i < other.size_; ++i) {
+                    ::new (data_ + size_) T(std::move(other.inline_ptr()[i]));
+                    ++size_;
+                }
                 other.destroy_inline();
             } else {
                 data_     = other.data_;
@@ -214,10 +244,17 @@ public:
         } else {
             // Reallocate to exact size
             T* new_data = static_cast<T*>(::operator new(sizeof(T) * size_));
-            for (size_t i = 0; i < size_; ++i) {
-                ::new (new_data + i) T(std::move(data_[i]));
-                data_[i].~T();
+            size_t i = 0;
+            try {
+                for (; i < size_; ++i) {
+                    ::new (new_data + i) T(std::move(data_[i]));
+                }
+            } catch (...) {
+                for (size_t j = 0; j < i; ++j) new_data[j].~T();
+                ::operator delete(new_data);
+                throw;
             }
+            for (i = 0; i < size_; ++i) data_[i].~T();
             ::operator delete(data_);
             data_ = new_data;
             capacity_ = size_;
@@ -302,20 +339,24 @@ public:
             if (new_cap < 4) new_cap = 4;
             T* new_data = static_cast<T*>(::operator new(sizeof(T) * new_cap));
             size_t i = 0;
+            size_t constructed = 0;
             try {
                 // Build elements before idx.
-                for (; i < idx; ++i)
+                for (; i < idx; ++i) {
                     ::new (new_data + i) T(std::move(data_[i]));
+                    ++constructed;
+                }
                 // Construct new element.
                 ::new (new_data + idx) T(std::forward<Args>(args)...);
+                ++constructed;
                 // Build elements after idx.
-                for (i = idx; i < size_; ++i)
+                for (i = idx; i < size_; ++i) {
                     ::new (new_data + i + 1) T(std::move(data_[i]));
+                    ++constructed;
+                }
             } catch (...) {
-                for (size_t j = 0; j < i && j < idx; ++j)
+                for (size_t j = 0; j < constructed; ++j)
                     new_data[j].~T();
-                // If we got past the new element, destroy it too.
-                if (i >= idx) new_data[idx].~T();
                 ::operator delete(new_data);
                 throw;
             }
@@ -359,8 +400,11 @@ public:
             for (size_t i = n; i < size_; ++i) data_[i].~T();
         } else if (n > size_) {
             reserve(n);
-            for (size_t i = size_; i < n; ++i)
+            for (size_t i = size_; i < n; ++i) {
                 ::new (data_ + i) T(val);
+                ++size_;
+            }
+            return;
         }
         size_ = n;
     }

@@ -2,10 +2,56 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+namespace {
+
+struct ThrowingItem {
+    static inline int live_count = 0;
+    static inline int copy_calls = 0;
+    static inline int move_calls = 0;
+    static inline int copy_throw_after = -1;
+    static inline int move_throw_after = -1;
+
+    int value = 0;
+
+    ThrowingItem() : value(0) { ++live_count; }
+    explicit ThrowingItem(int v) : value(v) { ++live_count; }
+
+    ThrowingItem(const ThrowingItem& other) : value(other.value) {
+        if (copy_throw_after >= 0 && copy_calls++ >= copy_throw_after) {
+            throw std::runtime_error("copy");
+        }
+        ++live_count;
+    }
+
+    ThrowingItem(ThrowingItem&& other) noexcept(false) : value(other.value) {
+        if (move_throw_after >= 0 && move_calls++ >= move_throw_after) {
+            throw std::runtime_error("move");
+        }
+        ++live_count;
+        other.value = -1;
+    }
+
+    ThrowingItem& operator=(const ThrowingItem&) = default;
+    ThrowingItem& operator=(ThrowingItem&&) = default;
+
+    ~ThrowingItem() { --live_count; }
+
+    static void Reset() {
+        live_count = 0;
+        copy_calls = 0;
+        move_calls = 0;
+        copy_throw_after = -1;
+        move_throw_after = -1;
+    }
+};
+
+} // namespace
 
 // ═══════════════════════════════════════════════════════════════════
 // Construction and basic access
@@ -295,6 +341,41 @@ TEST_CASE("InlinedVector: move assignment", "[inlined_vector]") {
     REQUIRE(b.size() == 3);
 }
 
+TEST_CASE("InlinedVector: count constructor cleans up on copy throw", "[inlined_vector][exception]") {
+    ThrowingItem::Reset();
+    ThrowingItem::copy_throw_after = 1;
+    try {
+        zeta::InlinedVector<ThrowingItem, 4> v(3, ThrowingItem(7));
+        (void)v;
+        FAIL("expected copy construction to throw");
+    } catch (const std::runtime_error&) {
+        REQUIRE(ThrowingItem::live_count == 0);
+    }
+}
+
+TEST_CASE("InlinedVector: initializer_list cleans up on copy throw", "[inlined_vector][exception]") {
+    ThrowingItem::Reset();
+    ThrowingItem::copy_throw_after = 1;
+    try {
+        zeta::InlinedVector<ThrowingItem, 4> v = {ThrowingItem(1), ThrowingItem(2), ThrowingItem(3)};
+        (void)v;
+        FAIL("expected copy construction to throw");
+    } catch (const std::runtime_error&) {
+        REQUIRE(ThrowingItem::live_count == 0);
+    }
+}
+
+TEST_CASE("InlinedVector: copy assignment stays valid on throw", "[inlined_vector][exception]") {
+    ThrowingItem::Reset();
+    zeta::InlinedVector<ThrowingItem, 4> a = {ThrowingItem(1), ThrowingItem(2), ThrowingItem(3)};
+    zeta::InlinedVector<ThrowingItem, 4> b = {ThrowingItem(9)};
+    ThrowingItem::copy_calls = 0;
+    ThrowingItem::copy_throw_after = 1;
+    REQUIRE_THROWS_AS(b = a, std::runtime_error);
+    REQUIRE(b.size() == 1);
+    REQUIRE(b[0].value == 1);
+}
+
 TEST_CASE("InlinedVector: heap copy", "[inlined_vector]") {
     zeta::InlinedVector<int, 2> a = {1, 2, 3, 4}; // on heap
     auto b = a;
@@ -327,6 +408,30 @@ TEST_CASE("InlinedVector: heap move", "[inlined_vector]") {
     auto b = std::move(a);
     REQUIRE(b.size() == 5);
     REQUIRE(a.empty());
+}
+
+TEST_CASE("InlinedVector: shrink_to_fit heap path is exception safe", "[inlined_vector][exception]") {
+    ThrowingItem::Reset();
+    zeta::InlinedVector<ThrowingItem, 2> v;
+    v.emplace_back(1);
+    v.emplace_back(2);
+    v.emplace_back(3);
+    v.emplace_back(4);
+    ThrowingItem::move_throw_after = 1;
+    REQUIRE_THROWS_AS(v.shrink_to_fit(), std::runtime_error);
+    REQUIRE(v.size() == 4);
+    REQUIRE(ThrowingItem::live_count == 4);
+}
+
+TEST_CASE("InlinedVector: heap emplace stays valid on throw", "[inlined_vector][exception]") {
+    ThrowingItem::Reset();
+    zeta::InlinedVector<ThrowingItem, 2> v;
+    v.emplace_back(1);
+    v.emplace_back(3);
+    ThrowingItem::move_throw_after = 1;
+    REQUIRE_THROWS_AS(v.emplace(v.begin() + 1, ThrowingItem(2)), std::runtime_error);
+    REQUIRE(v.size() == 2);
+    REQUIRE(ThrowingItem::live_count == 2);
 }
 
 TEST_CASE("InlinedVector: move-only type", "[inlined_vector]") {
