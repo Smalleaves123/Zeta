@@ -14,6 +14,7 @@ cmake --build build/examples
 ```bash
 ./build/examples/examples/zeta_example_quickstart
 ./build/examples/examples/zeta_example_status_time
+./build/examples/examples/zeta_example_time_control
 ./build/examples/examples/zeta_example_log_random
 ./build/examples/examples/zeta_example_strings_pipeline
 ./build/examples/examples/zeta_example_memory_views
@@ -25,6 +26,7 @@ cmake --build build/examples
 
 - `quickstart.cpp`: `flat_hash_map`, `InlinedVector`, `StrCat`, `StrJoin`, `StrSplit`
 - `status_time.cpp`: `Result`, `Status`, integer parsing, local/UTC timestamps
+- `time_control.cpp`: `Stopwatch`, `Deadline`, `PeriodicTimer`, `ExponentialBackoff`
 - `log_random.cpp`: structured logging, `BitGen`, `Uniform`, `Bernoulli`
 - `strings_pipeline.cpp`: split, trim, normalize, join, formatted output
 - `memory_views.cpp`: `Span` plus `function_ref` for zero-allocation callbacks

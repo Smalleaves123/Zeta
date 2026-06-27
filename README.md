@@ -89,6 +89,7 @@ target_link_libraries(my_app PRIVATE
 Available module targets currently include:
 
 - `zeta::bits`
+- `zeta::base`
 - `zeta::cleanup`
 - `zeta::container`
 - `zeta::flags`
@@ -119,6 +120,7 @@ Available module targets currently include:
 cpp-/
 ├── CMakeLists.txt                    # Top-level build
 ├── zeta/                             # Library root (equivalent to absl/)
+│   ├── base/                         # Foundational helpers
 │   ├── status/                       # Error model and propagation helpers
 │   ├── strings/                      # Text building, splitting, formatting
 │   │   └── internal/                 # Non-public string implementation detail
@@ -136,11 +138,14 @@ cpp-/
 │   ├── cleanup/                      # Scope guard utilities
 │   ├── meta/                         # Traits and compile-time helpers
 │   └── utility/                      # Compatibility bucket; shrinking over time
-├── tests/                            # Module-oriented tests
+├── tests/                            # Module-oriented tests and usage docs
 ├── examples/                         # End-user examples
 ├── benchmarks/                       # Microbenchmarks
 └── fuzz/                             # Fuzz targets and corpora
 ```
+
+Tests are intentionally written to read like usage notes for the public API.
+See [tests/README.md](./tests/README.md) for the conventions we follow.
 
 ### Structure Direction
 
@@ -152,8 +157,8 @@ The project is intentionally converging on an Abseil-style layout:
 - `zeta::zeta` remains for compatibility, not as the preferred long-term entry
 
 Modules such as `bits` and `utility` currently remain public for compatibility,
-but new APIs should prefer landing in clearer domain modules like `strings`,
-`status`, `time`, `memory`, or `container`.
+but new APIs should prefer landing in clearer domain modules like `base`,
+`strings`, `status`, `time`, `memory`, or `container`.
 
 ---
 

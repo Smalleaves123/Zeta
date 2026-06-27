@@ -30,6 +30,7 @@ endfunction()
 
 # ── Per-module CMake (Abseil-style interface targets) ─────────────
 add_subdirectory(bits)
+add_subdirectory(base)
 add_subdirectory(cleanup)
 add_subdirectory(flags)
 add_subdirectory(hash)
