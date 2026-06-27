@@ -6,7 +6,23 @@
 
 #include "zeta/time/clock.h"
 
+#include <limits>
+
 namespace zeta {
+
+namespace time_internal {
+
+[[nodiscard]] inline Clock::time_point SaturatingAdd(
+    Clock::time_point base, Duration delta) noexcept {
+    const auto d = delta.ToNanoseconds();
+    const auto max = std::numeric_limits<Clock::time_point>::max();
+    const auto min = std::numeric_limits<Clock::time_point>::min();
+    if (d > 0 && base > max - d) return max;
+    if (d < 0 && base < min - d) return min;
+    return base + d;
+}
+
+} // namespace time_internal
 
 class Stopwatch {
 public:
@@ -46,7 +62,7 @@ public:
     explicit Deadline(Clock::time_point target) noexcept : target_(target) {}
 
     [[nodiscard]] static Deadline After(Duration timeout) noexcept {
-        return Deadline(Clock::Now() + timeout.ToNanoseconds());
+        return Deadline(time_internal::SaturatingAdd(Clock::Now(), timeout));
     }
 
     [[nodiscard]] static Deadline Never() noexcept {

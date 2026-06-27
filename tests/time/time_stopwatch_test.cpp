@@ -38,3 +38,9 @@ TEST_CASE("deadline: never stays open", "[time][deadline]") {
     REQUIRE(!deadline.Expired());
     REQUIRE(deadline.Remaining().ToRaw() == zeta::Duration::Infinite().ToRaw());
 }
+
+TEST_CASE("deadline: after infinite duration saturates safely", "[time][deadline][extreme]") {
+    auto deadline = zeta::Deadline::After(zeta::Duration::Infinite());
+    REQUIRE(deadline.time_point() == zeta::Duration::Infinite().ToRaw());
+    REQUIRE(deadline.Remaining().ToRaw() == zeta::Duration::Infinite().ToRaw());
+}
