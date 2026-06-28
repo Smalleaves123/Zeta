@@ -5,6 +5,8 @@
 /// @brief  Fast integer-to-string and string-to-integer conversions.
 
 #include <cassert>
+#include <cerrno>
+#include <cmath>
 #include <charconv>
 #include <cstdint>
 #include <cstdlib>
@@ -56,8 +58,9 @@ template <typename T>
     for (size_t i = 0; i < n; ++i) tmp[i] = sv[i];
     tmp[n] = '\0';
     char* end = nullptr;
+    errno = 0;
     *out = std::strtof(tmp, &end);
-    return end == tmp + n;
+    return end == tmp + n && errno != ERANGE && std::isfinite(*out);
 }
 
 [[nodiscard]] inline bool SimpleAtoi(std::string_view sv, double* out) noexcept {
@@ -67,8 +70,9 @@ template <typename T>
     for (size_t i = 0; i < n; ++i) tmp[i] = sv[i];
     tmp[n] = '\0';
     char* end = nullptr;
+    errno = 0;
     *out = std::strtod(tmp, &end);
-    return end == tmp + n;
+    return end == tmp + n && errno != ERANGE && std::isfinite(*out);
 }
 
 } // namespace zeta

@@ -43,4 +43,6 @@ TEST_CASE("numbers: SimpleAtoi double", "[strings][numbers]") {
     REQUIRE(v == 3.14);
     REQUIRE(zeta::SimpleAtoi("1e5", &v));
     REQUIRE(v == 100000.0);
+    REQUIRE(!zeta::SimpleAtoi("1e400", &v));
+    REQUIRE(!zeta::SimpleAtoi("inf", &v));
 }
