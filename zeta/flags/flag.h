@@ -14,8 +14,10 @@
 ///   // Use: int p = *FLAGS_port;  // 8080 or whatever --port value
 
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 #include "zeta/flags/internal/registry.h"
 #include "zeta/strings/numbers.h"
@@ -40,9 +42,13 @@ public:
     [[nodiscard]] const T& Get()      const noexcept { return value_; }
     [[nodiscard]] const T& Default()  const noexcept { return default_; }
 
-    void Set(T v) noexcept { value_ = v; }
+    void Set(T v) noexcept {
+        std::lock_guard<std::mutex> lock(mu_);
+        value_ = v;
+    }
 
     bool Parse(std::string_view s) noexcept override {
+        std::lock_guard<std::mutex> lock(mu_);
         if constexpr (std::is_same_v<T, bool>) {
             if (s == "true" || s == "1" || s == "yes" || s == "y") {
                 value_ = true; return true;
@@ -60,6 +66,7 @@ public:
     }
 
     [[nodiscard]] std::string_view CurrentValue() const noexcept override {
+        std::lock_guard<std::mutex> lock(mu_);
         buf_ = ToString(value_);
         return buf_;
     }
@@ -79,6 +86,7 @@ private:
     T value_;
     T default_;
     mutable std::string buf_;  // scratch for CurrentValue()
+    mutable std::mutex mu_;
 
     template <typename U>
     static std::string ToString(U v) {
@@ -108,7 +116,7 @@ private:
 ///
 /// Supported types: bool, int32, int64, uint32, uint64, double, string.
 #define ZETA_FLAG(type, name, default_value, help_text)                 \
-    static ::zeta::Flag<::zeta::internal::FlagType_##type>              \
+    inline ::zeta::Flag<::zeta::internal::FlagType_##type>              \
         FLAGS_##name(#name, help_text, __FILE__, (default_value), true)
 
 namespace zeta {

@@ -3,6 +3,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <atomic>
+#include <thread>
+#include <vector>
 #include <string>
 
 // Register test flags (static init — registered via ZETA_FLAG macro)
@@ -85,4 +88,23 @@ TEST_CASE("flags: TypeName returns correct types", "[flags]") {
     REQUIRE(f2.TypeName() == "bool");
     REQUIRE(f3.TypeName() == "string");
     REQUIRE(f4.TypeName() == "double");
+}
+
+TEST_CASE("flags: CurrentValue is safe under concurrent reads", "[flags][thread]") {
+    zeta::Flag<int32_t> f("threads", "", __FILE__, 1234);
+    constexpr int kThreads = 8;
+    constexpr int kIterations = 1000;
+
+    std::atomic<bool> ok{true};
+    std::vector<std::thread> threads;
+    threads.reserve(kThreads);
+    for (int i = 0; i < kThreads; ++i) {
+        threads.emplace_back([&] {
+            for (int j = 0; j < kIterations; ++j) {
+                if (f.CurrentValue() != "1234") ok.store(false, std::memory_order_relaxed);
+            }
+        });
+    }
+    for (auto& t : threads) t.join();
+    REQUIRE(ok.load(std::memory_order_relaxed));
 }

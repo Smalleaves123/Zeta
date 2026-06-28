@@ -1,1 +1,3 @@
 zeta_test(flags_flag_test)
+zeta_test(flags_flag_header_test)
+zeta_test(flags_flag_header_test_2)

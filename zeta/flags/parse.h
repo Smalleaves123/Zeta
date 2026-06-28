@@ -35,11 +35,12 @@ inline std::vector<std::string_view> ParseCommandLine(int argc, char** argv) {
             std::printf("Flags:\n");
             for (auto* f = flags_internal::FlagEntry::Head();
                  f != nullptr; f = f->Next()) {
+                const std::string_view current = f->CurrentValue();
                 std::printf("  --%-20s (%s)  %s [default: %.*s]\n",
                             f->Name().data(), f->TypeName().data(),
                             f->Help().data(),
-                            static_cast<int>(f->CurrentValue().size()),
-                            f->CurrentValue().data());
+                            static_cast<int>(current.size()),
+                            current.data());
             }
             std::exit(0);
         }
