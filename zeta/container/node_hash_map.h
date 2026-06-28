@@ -114,7 +114,9 @@ public:
     [[nodiscard]] size_t size()      const noexcept { return table_.size(); }
     [[nodiscard]] bool   empty()     const noexcept { return table_.empty(); }
     [[nodiscard]] size_t capacity()  const noexcept { return table_.capacity(); }
+    [[nodiscard]] size_t max_size()  const noexcept { return table_.max_size(); }
     void reserve(size_t n) { table_.reserve(n); }
+    void rehash(size_t n) { table_.rehash(n); }
 
     // ── Lookup ──────────────────────────────────────────────────────
 
@@ -193,6 +195,19 @@ public:
     [[nodiscard]] const_iterator end() const noexcept { return const_iterator(table_.end()); }
     [[nodiscard]] const_iterator cbegin() const noexcept { return begin(); }
     [[nodiscard]] const_iterator cend() const noexcept { return end(); }
+
+    void swap(node_hash_map& other) noexcept { table_.swap(other.table_); }
+    friend void swap(node_hash_map& a, node_hash_map& b) noexcept { a.swap(b); }
+
+    bool operator==(const node_hash_map& other) const {
+        if (size() != other.size()) return false;
+        for (const auto& [k, v] : *this) {
+            auto it = other.find(k);
+            if (it == other.end() || it->second != v) return false;
+        }
+        return true;
+    }
+    bool operator!=(const node_hash_map& other) const { return !(*this == other); }
 
 private:
     Table table_;

@@ -69,6 +69,18 @@ TEST_CASE("node_hash_map: large insert", "[node_hash][map]") {
     for (int i = 0; i < N; ++i) REQUIRE(m.contains(i));
 }
 
+TEST_CASE("node_hash_map: reserve and rehash", "[node_hash][map]") {
+    zeta::node_hash_map<int, int> m;
+    m.reserve(128);
+    REQUIRE(m.capacity() >= 128);
+    m.insert({1, 10});
+    m.insert({2, 20});
+    m.rehash(256);
+    REQUIRE(m.capacity() >= 256);
+    REQUIRE(m.at(1) == 10);
+    REQUIRE(m.at(2) == 20);
+}
+
 TEST_CASE("node_hash_map: try_emplace", "[node_hash][map]") {
     zeta::node_hash_map<int, std::string> m;
     auto [it, ok] = m.try_emplace(1, "hello");
@@ -99,6 +111,18 @@ TEST_CASE("node_hash_map: at throws for missing key", "[node_hash][map]") {
     REQUIRE_THROWS_AS(m.at(1), std::out_of_range);
 }
 
+TEST_CASE("node_hash_map: swap and equality", "[node_hash][map]") {
+    zeta::node_hash_map<int, int> a = {{1, 10}, {2, 20}};
+    zeta::node_hash_map<int, int> b = {{3, 30}};
+    a.swap(b);
+    REQUIRE(a.contains(3));
+    REQUIRE(b.contains(1));
+    REQUIRE(a != b);
+
+    zeta::node_hash_map<int, int> c = {{1, 10}, {2, 20}};
+    REQUIRE(c == c);
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // node_hash_set
 // ═══════════════════════════════════════════════════════════════════════
@@ -121,6 +145,18 @@ TEST_CASE("node_hash_set: large insert", "[node_hash][set]") {
     for (int i = 0; i < 500; ++i) REQUIRE(s.contains(i));
 }
 
+TEST_CASE("node_hash_set: reserve and rehash", "[node_hash][set]") {
+    zeta::node_hash_set<int> s;
+    s.reserve(128);
+    REQUIRE(s.capacity() >= 128);
+    s.insert(1);
+    s.insert(2);
+    s.rehash(256);
+    REQUIRE(s.capacity() >= 256);
+    REQUIRE(s.contains(1));
+    REQUIRE(s.contains(2));
+}
+
 TEST_CASE("node_hash_set: const iteration and lookup", "[node_hash][set][const]") {
     const zeta::node_hash_set<int> s = {1, 2, 3};
     REQUIRE(s.contains(2));
@@ -128,4 +164,16 @@ TEST_CASE("node_hash_set: const iteration and lookup", "[node_hash][set][const]"
     int sum = 0;
     for (const int& v : s) sum += v;
     REQUIRE(sum == 6);
+}
+
+TEST_CASE("node_hash_set: swap and equality", "[node_hash][set]") {
+    zeta::node_hash_set<int> a = {1, 2};
+    zeta::node_hash_set<int> b = {3};
+    a.swap(b);
+    REQUIRE(a.contains(3));
+    REQUIRE(b.contains(1));
+    REQUIRE(a != b);
+
+    zeta::node_hash_set<int> c = {1, 2};
+    REQUIRE(c == c);
 }
