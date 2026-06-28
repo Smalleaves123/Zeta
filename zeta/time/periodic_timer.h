@@ -51,7 +51,9 @@ public:
 
     void Wait() const {
         if (interval_.IsZero()) return;
-        Clock::SleepUntil(next_);
+        while (!Ready()) {
+            Clock::SleepUntil(next_);
+        }
     }
 
     void WaitNext() {
