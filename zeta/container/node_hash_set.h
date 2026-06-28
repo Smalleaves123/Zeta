@@ -14,6 +14,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <initializer_list>
 #include <memory>
 #include <utility>
 
@@ -60,10 +61,35 @@ public:
         friend bool operator!=(iterator a, iterator b) noexcept { return a.it_ != b.it_; }
     };
 
+    class const_iterator {
+        friend class node_hash_set;
+        typename Table::const_iterator it_;
+        explicit const_iterator(typename Table::const_iterator it) noexcept : it_(it) {}
+    public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = K;
+        using difference_type = std::ptrdiff_t;
+        using pointer    = const K*;
+        using reference  = const K&;
+
+        const_iterator() noexcept = default;
+        const_iterator(iterator it) noexcept : it_(it.it_) {}
+        reference operator*()  const noexcept { return *it_->get(); }
+        pointer   operator->() const noexcept { return it_->get(); }
+        const_iterator& operator++() noexcept { ++it_; return *this; }
+        const_iterator  operator++(int) noexcept { auto t = *this; ++(*this); return t; }
+        friend bool operator==(const const_iterator& a, const const_iterator& b) noexcept { return a.it_ == b.it_; }
+        friend bool operator!=(const const_iterator& a, const const_iterator& b) noexcept { return a.it_ != b.it_; }
+    };
+
     // ── Construction ────────────────────────────────────────────────
 
     node_hash_set() = default;
     ~node_hash_set() = default;
+
+    node_hash_set(std::initializer_list<value_type> ilist) {
+        for (const auto& v : ilist) insert(v);
+    }
 
     node_hash_set(const node_hash_set& other) {
         for (auto& v : other) insert(v);
@@ -86,6 +112,10 @@ public:
     template <typename LK = K>
     [[nodiscard]] iterator find(const LK& key) {
         return iterator(table_.find(key));
+    }
+    template <typename LK = K>
+    [[nodiscard]] const_iterator find(const LK& key) const {
+        return const_iterator(table_.find(key));
     }
     template <typename LK = K>
     [[nodiscard]] bool contains(const LK& key) const {
@@ -115,6 +145,10 @@ public:
 
     [[nodiscard]] iterator begin() noexcept { return iterator(table_.begin()); }
     [[nodiscard]] iterator end()   noexcept { return iterator(table_.end()); }
+    [[nodiscard]] const_iterator begin() const noexcept { return const_iterator(table_.begin()); }
+    [[nodiscard]] const_iterator end() const noexcept { return const_iterator(table_.end()); }
+    [[nodiscard]] const_iterator cbegin() const noexcept { return begin(); }
+    [[nodiscard]] const_iterator cend() const noexcept { return end(); }
 
 private:
     Table table_;

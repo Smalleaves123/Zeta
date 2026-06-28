@@ -4,6 +4,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <string>
+#include <stdexcept>
+#include <vector>
 
 // ═══════════════════════════════════════════════════════════════════════
 // node_hash_map
@@ -78,6 +80,25 @@ TEST_CASE("node_hash_map: try_emplace", "[node_hash][map]") {
     REQUIRE(it2->second == "hello");  // unchanged
 }
 
+TEST_CASE("node_hash_map: const lookup and iteration", "[node_hash][map][const]") {
+    const zeta::node_hash_map<int, std::string> m = {{1, "one"}, {2, "two"}};
+    REQUIRE(m.contains(1));
+    REQUIRE(m.find(2) != m.end());
+    REQUIRE(m.at(1) == "one");
+
+    std::vector<int> keys;
+    for (const auto& [k, v] : m) {
+        (void)v;
+        keys.push_back(k);
+    }
+    REQUIRE(keys.size() == 2);
+}
+
+TEST_CASE("node_hash_map: at throws for missing key", "[node_hash][map]") {
+    zeta::node_hash_map<int, std::string> m;
+    REQUIRE_THROWS_AS(m.at(1), std::out_of_range);
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // node_hash_set
 // ═══════════════════════════════════════════════════════════════════════
@@ -98,4 +119,13 @@ TEST_CASE("node_hash_set: large insert", "[node_hash][set]") {
     for (int i = 0; i < 500; ++i) s.insert(i);
     REQUIRE(s.size() == 500);
     for (int i = 0; i < 500; ++i) REQUIRE(s.contains(i));
+}
+
+TEST_CASE("node_hash_set: const iteration and lookup", "[node_hash][set][const]") {
+    const zeta::node_hash_set<int> s = {1, 2, 3};
+    REQUIRE(s.contains(2));
+    REQUIRE(s.find(3) != s.end());
+    int sum = 0;
+    for (const int& v : s) sum += v;
+    REQUIRE(sum == 6);
 }

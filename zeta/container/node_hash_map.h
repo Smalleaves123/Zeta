@@ -17,7 +17,9 @@
 
 #include <cstddef>
 #include <functional>
+#include <initializer_list>
 #include <memory>
+#include <stdexcept>
 #include <utility>
 
 namespace zeta {
@@ -67,12 +69,35 @@ public:
         friend bool operator!=(iterator a, iterator b) noexcept { return a.it_ != b.it_; }
     };
 
-    using const_iterator = iterator;  // simplified: no separate const_iterator
+    class const_iterator {
+        friend class node_hash_map;
+        typename Table::const_iterator it_;
+        explicit const_iterator(typename Table::const_iterator it) noexcept : it_(it) {}
+    public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = std::pair<const K, V>;
+        using difference_type = std::ptrdiff_t;
+        using pointer    = const value_type*;
+        using reference  = const value_type&;
+
+        const_iterator() noexcept = default;
+        const_iterator(iterator it) noexcept : it_(it.it_) {}
+        reference operator*()  const noexcept { return *it_->get(); }
+        pointer   operator->() const noexcept { return it_->get(); }
+        const_iterator& operator++() noexcept { ++it_; return *this; }
+        const_iterator  operator++(int) noexcept { auto t = *this; ++(*this); return t; }
+        friend bool operator==(const const_iterator& a, const const_iterator& b) noexcept { return a.it_ == b.it_; }
+        friend bool operator!=(const const_iterator& a, const const_iterator& b) noexcept { return a.it_ != b.it_; }
+    };
 
     // ── Construction ────────────────────────────────────────────────
 
     node_hash_map() = default;
     ~node_hash_map() = default;
+
+    node_hash_map(std::initializer_list<value_type> ilist) {
+        for (const auto& v : ilist) insert(v);
+    }
 
     node_hash_map(const node_hash_map& other) {
         for (auto& kv : other) insert(kv);
@@ -98,8 +123,25 @@ public:
         return iterator(table_.find(key));
     }
     template <typename LK = K>
+    [[nodiscard]] const_iterator find(const LK& key) const {
+        return const_iterator(table_.find(key));
+    }
+    template <typename LK = K>
     [[nodiscard]] bool contains(const LK& key) const {
         return table_.contains(key);
+    }
+
+    template <typename LK = K>
+    [[nodiscard]] V& at(const LK& key) {
+        auto it = find(key);
+        if (it == end()) throw std::out_of_range("node_hash_map::at");
+        return it->second;
+    }
+    template <typename LK = K>
+    [[nodiscard]] const V& at(const LK& key) const {
+        auto it = find(key);
+        if (it == end()) throw std::out_of_range("node_hash_map::at");
+        return it->second;
     }
 
     V& operator[](const K& key) {
@@ -147,6 +189,10 @@ public:
 
     [[nodiscard]] iterator begin() noexcept { return iterator(table_.begin()); }
     [[nodiscard]] iterator end()   noexcept { return iterator(table_.end()); }
+    [[nodiscard]] const_iterator begin() const noexcept { return const_iterator(table_.begin()); }
+    [[nodiscard]] const_iterator end() const noexcept { return const_iterator(table_.end()); }
+    [[nodiscard]] const_iterator cbegin() const noexcept { return begin(); }
+    [[nodiscard]] const_iterator cend() const noexcept { return end(); }
 
 private:
     Table table_;
