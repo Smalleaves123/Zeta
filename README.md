@@ -454,6 +454,8 @@ Measured on Apple M1, clang-16, Release build. Results are indicative — always
 | Erase 500k | 18 ms | 8 ms | **2.3×** |
 | Memory (1M pairs) | 48 MB | 32 MB | **33% less** |
 
+The benchmark suite also includes `time/retry` control-flow coverage so retry/backoff policies can be measured alongside container hot paths.
+
 | Benchmark | `std::vector` | `zeta::InlinedVector<T,8>` | Benefit |
 |-----------|:---:|:---:|:---:|
 | Create 1M (size ≤ 3) | 1M allocs | **0 allocs** | No heap |

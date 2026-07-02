@@ -55,6 +55,13 @@ endif()
 
 option(ZETA_BUILD_BENCHMARKS "Build benchmarks" OFF)
 if(ZETA_BUILD_BENCHMARKS)
+    # We only need benchmark::benchmark for our own targets.
+    # Disable the library's bundled gtest path so CMake does not re-enter a
+    # nested configure step that is sensitive to policy-version defaults.
+    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+    set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
+    set(BENCHMARK_USE_BUNDLED_GTEST OFF CACHE BOOL "" FORCE)
+    set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
     include(FetchContent)
     FetchContent_Declare(
         googlebenchmark
@@ -70,9 +77,9 @@ if(ZETA_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
-option(ZETA_BUILD_FUZZERS "Build libFuzzer targets" OFF)
-set(ZETA_FUZZING_ENGINE "-fsanitize=fuzzer,address,undefined"
-    CACHE STRING "Compiler/linker flags used for fuzz targets")
+option(ZETA_BUILD_FUZZERS "Build fuzz harness targets" OFF)
+set(ZETA_FUZZ_COMPILE_OPTIONS -fsanitize=address,undefined -fno-omit-frame-pointer)
+set(ZETA_FUZZ_LINK_OPTIONS -fsanitize=address,undefined)
 if(ZETA_BUILD_FUZZERS)
     if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang|GNU")
         message(FATAL_ERROR "Fuzz targets require a Clang- or GCC-compatible compiler")
