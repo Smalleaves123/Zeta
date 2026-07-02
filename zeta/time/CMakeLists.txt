@@ -4,6 +4,7 @@ zeta_module(time HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/duration.h
     ${CMAKE_CURRENT_SOURCE_DIR}/clock.h
     ${CMAKE_CURRENT_SOURCE_DIR}/periodic_timer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/retry.h
     ${CMAKE_CURRENT_SOURCE_DIR}/stopwatch.h
     ${CMAKE_CURRENT_SOURCE_DIR}/timestamp.h
     ${CMAKE_CURRENT_SOURCE_DIR}/internal/format_internal.h

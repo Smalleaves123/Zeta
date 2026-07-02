@@ -7,6 +7,9 @@ target_link_libraries(zeta_example_status_time PRIVATE zeta::status zeta::string
 add_executable(zeta_example_time_control time_control.cpp)
 target_link_libraries(zeta_example_time_control PRIVATE zeta::time)
 
+add_executable(zeta_example_time_retry time_retry.cpp)
+target_link_libraries(zeta_example_time_retry PRIVATE zeta::time)
+
 add_executable(zeta_example_log_random log_random.cpp)
 target_link_libraries(zeta_example_log_random PRIVATE zeta::log zeta::random)
 
