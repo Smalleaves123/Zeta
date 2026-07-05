@@ -145,7 +145,9 @@ public:
     }
 
     template <typename F>
-        requires std::invocable<F&, T&>
+        requires std::invocable<F&, T&> &&
+                 (!std::is_void_v<std::remove_cvref_t<std::invoke_result_t<F&, T&>>>) &&
+                 std::is_constructible_v<std::remove_cvref_t<std::invoke_result_t<F&, T&>>, std::nullopt_t>
     [[nodiscard]] auto AndThen(F&& f) & {
         using Return = std::remove_cvref_t<std::invoke_result_t<F&, T&>>;
         if (!has_value()) return Return(std::nullopt);
@@ -153,7 +155,14 @@ public:
     }
 
     template <typename F>
-        requires std::invocable<F&, const T&>
+        requires std::invocable<F&, T&> &&
+                 std::is_void_v<std::remove_cvref_t<std::invoke_result_t<F&, T&>>>
+    auto AndThen(F&&) & = delete;
+
+    template <typename F>
+        requires std::invocable<F&, const T&> &&
+                 (!std::is_void_v<std::remove_cvref_t<std::invoke_result_t<F&, const T&>>>) &&
+                 std::is_constructible_v<std::remove_cvref_t<std::invoke_result_t<F&, const T&>>, std::nullopt_t>
     [[nodiscard]] auto AndThen(F&& f) const& {
         using Return = std::remove_cvref_t<std::invoke_result_t<F&, const T&>>;
         if (!has_value()) return Return(std::nullopt);
@@ -161,7 +170,14 @@ public:
     }
 
     template <typename F>
-        requires std::invocable<F&, T&&>
+        requires std::invocable<F&, const T&> &&
+                 std::is_void_v<std::remove_cvref_t<std::invoke_result_t<F&, const T&>>>
+    auto AndThen(F&&) const& = delete;
+
+    template <typename F>
+        requires std::invocable<F&, T&&> &&
+                 (!std::is_void_v<std::remove_cvref_t<std::invoke_result_t<F&, T&&>>>) &&
+                 std::is_constructible_v<std::remove_cvref_t<std::invoke_result_t<F&, T&&>>, std::nullopt_t>
     [[nodiscard]] auto AndThen(F&& f) && {
         using Return = std::remove_cvref_t<std::invoke_result_t<F&, T&&>>;
         if (!has_value()) return Return(std::nullopt);
@@ -169,12 +185,24 @@ public:
     }
 
     template <typename F>
-        requires std::invocable<F&, const T&&>
+        requires std::invocable<F&, T&&> &&
+                 std::is_void_v<std::remove_cvref_t<std::invoke_result_t<F&, T&&>>>
+    auto AndThen(F&&) && = delete;
+
+    template <typename F>
+        requires std::invocable<F&, const T&&> &&
+                 (!std::is_void_v<std::remove_cvref_t<std::invoke_result_t<F&, const T&&>>>) &&
+                 std::is_constructible_v<std::remove_cvref_t<std::invoke_result_t<F&, const T&&>>, std::nullopt_t>
     [[nodiscard]] auto AndThen(F&& f) const&& {
         using Return = std::remove_cvref_t<std::invoke_result_t<F&, const T&&>>;
         if (!has_value()) return Return(std::nullopt);
         return std::invoke(std::forward<F>(f), std::move(*value_));
     }
+
+    template <typename F>
+        requires std::invocable<F&, const T&&> &&
+                 std::is_void_v<std::remove_cvref_t<std::invoke_result_t<F&, const T&&>>>
+    auto AndThen(F&&) const&& = delete;
 
     template <typename F>
         requires std::invocable<F&>

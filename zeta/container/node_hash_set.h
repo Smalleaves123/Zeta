@@ -13,6 +13,7 @@
 #include "zeta/container/internal/raw_hash_set.h"
 
 #include <cstddef>
+#include <concepts>
 #include <functional>
 #include <initializer_list>
 #include <memory>
@@ -91,10 +92,12 @@ public:
         for (const auto& v : ilist) insert(v);
     }
 
-    node_hash_set(const node_hash_set& other) {
+    node_hash_set(const node_hash_set& other)
+        requires std::copy_constructible<value_type> {
         for (auto& v : other) insert(v);
     }
-    node_hash_set& operator=(const node_hash_set& other) {
+    node_hash_set& operator=(const node_hash_set& other)
+        requires std::copy_constructible<value_type> {
         if (this != &other) { clear(); for (auto& v : other) insert(v); }
         return *this;
     }

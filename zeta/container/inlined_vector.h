@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <concepts>
 #include <cstddef>
 #include <cstring>
 #include <initializer_list>
@@ -134,7 +135,8 @@ public:
         if (!is_inline()) ::operator delete(data_);
     }
 
-    InlinedVector(const InlinedVector& other) {
+    InlinedVector(const InlinedVector& other)
+        requires std::copy_constructible<T> {
         reserve(other.size_);
         try {
             for (size_t i = 0; i < other.size_; ++i) {
@@ -148,7 +150,8 @@ public:
         }
     }
 
-    InlinedVector& operator=(const InlinedVector& other) {
+    InlinedVector& operator=(const InlinedVector& other)
+        requires std::copy_constructible<T> {
         if (this != &other) {
             clear();
             reserve(other.size_);

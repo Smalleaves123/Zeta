@@ -39,10 +39,10 @@ public:
     template <
         typename F,
         typename = std::enable_if_t<
-            std::is_reference_v<F> &&  // reject rvalues (temporaries)
+            std::is_lvalue_reference_v<F> &&  // reject rvalues (temporaries)
             std::is_invocable_r_v<Ret, std::remove_reference_t<F>&, Args...>>>
     function_ref(F&& f) noexcept {
-        callable_ = reinterpret_cast<void*>(std::addressof(f));
+        callable_ = reinterpret_cast<const void*>(std::addressof(f));
         thunk_ = &invoke<std::remove_reference_t<F>>;
     }
 
@@ -54,13 +54,22 @@ public:
     }
 
 private:
-    void* callable_;
-    Ret (*thunk_)(void*, Args...);
+    const void* callable_;
+    Ret (*thunk_)(const void*, Args...);
 
     template <typename F>
-    static Ret invoke(void* obj, Args... args) {
-        return (*reinterpret_cast<std::remove_reference_t<F>*>(obj))(
-            std::forward<Args>(args)...);
+    static Ret invoke(const void* obj, Args... args) {
+        using Fn = std::remove_reference_t<F>;
+        if constexpr (std::is_function_v<Fn>) {
+            return (*reinterpret_cast<Fn*>(const_cast<void*>(obj)))(
+                std::forward<Args>(args)...);
+        } else if constexpr (std::is_const_v<Fn>) {
+            return (*reinterpret_cast<const std::remove_const_t<Fn>*>(obj))(
+                std::forward<Args>(args)...);
+        } else {
+            return (*const_cast<Fn*>(reinterpret_cast<const Fn*>(obj)))(
+                std::forward<Args>(args)...);
+        }
     }
 };
 
@@ -75,13 +84,13 @@ public:
     template <
         typename F,
         typename = std::enable_if_t<
-            std::is_reference_v<F> &&  // reject rvalues (temporaries)
+            std::is_lvalue_reference_v<F> &&  // reject rvalues (temporaries)
             std::is_invocable_r_v<Ret, std::remove_reference_t<F>&, Args...> &&
             std::is_nothrow_invocable_r_v<Ret,
                                           std::remove_reference_t<F>&,
                                           Args...>>>
     function_ref(F&& f) noexcept {
-        callable_ = reinterpret_cast<void*>(std::addressof(f));
+        callable_ = reinterpret_cast<const void*>(std::addressof(f));
         thunk_ = &invoke<std::remove_reference_t<F>>;
     }
 
@@ -93,13 +102,22 @@ public:
     }
 
 private:
-    void* callable_;
-    Ret (*thunk_)(void*, Args...) noexcept;
+    const void* callable_;
+    Ret (*thunk_)(const void*, Args...) noexcept;
 
     template <typename F>
-    static Ret invoke(void* obj, Args... args) noexcept {
-        return (*reinterpret_cast<std::remove_reference_t<F>*>(obj))(
-            std::forward<Args>(args)...);
+    static Ret invoke(const void* obj, Args... args) noexcept {
+        using Fn = std::remove_reference_t<F>;
+        if constexpr (std::is_function_v<Fn>) {
+            return (*reinterpret_cast<Fn*>(const_cast<void*>(obj)))(
+                std::forward<Args>(args)...);
+        } else if constexpr (std::is_const_v<Fn>) {
+            return (*reinterpret_cast<const std::remove_const_t<Fn>*>(obj))(
+                std::forward<Args>(args)...);
+        } else {
+            return (*const_cast<Fn*>(reinterpret_cast<const Fn*>(obj)))(
+                std::forward<Args>(args)...);
+        }
     }
 };
 

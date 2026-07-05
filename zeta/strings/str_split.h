@@ -97,6 +97,19 @@ private:
     void advance() {
         if (done_) return;
 
+        if constexpr (std::is_same_v<Delim, ByString>) {
+            if (delim_.s.empty()) {
+                if (remaining_.empty()) {
+                    done_ = true;
+                    return;
+                }
+                current_   = remaining_;
+                remaining_ = std::string_view{};
+                ++count_;
+                return;
+            }
+        }
+
         // Trailing empty after delimiter-at-end
         if (need_trailing_) {
             need_trailing_ = false;

@@ -12,6 +12,7 @@
 ///   - Exception-safe insert path
 
 #include <cassert>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -254,11 +255,17 @@ public:
     ~raw_hash_set() noexcept { destroy_slots(); }
 
     raw_hash_set(const raw_hash_set& other)
+        requires std::copy_constructible<stored_value_type> &&
+                 std::copyable<Hash> &&
+                 std::copyable<KeyEq>
         : hash_(other.hash_), eq_(other.eq_) {
         reset_layout();
         copy_from(other);
     }
-    raw_hash_set& operator=(const raw_hash_set& other) {
+    raw_hash_set& operator=(const raw_hash_set& other)
+        requires std::copy_constructible<stored_value_type> &&
+                 std::copyable<Hash> &&
+                 std::copyable<KeyEq> {
         if (this != &other) {
             hash_ = other.hash_; eq_ = other.eq_;
             destroy_slots();

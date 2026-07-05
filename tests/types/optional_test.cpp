@@ -3,6 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <string>
+#include <type_traits>
 
 TEST_CASE("Optional: default is empty", "[types][optional]") {
     zeta::Optional<int> opt;
@@ -49,6 +50,11 @@ TEST_CASE("Optional: AndThen chains optional-producing work", "[types][optional]
     });
     REQUIRE(chained.has_value());
     REQUIRE(chained.value() == "11");
+}
+
+TEST_CASE("Optional: AndThen rejects void-returning callables", "[types][optional][compile]") {
+    static_assert(std::is_void_v<std::invoke_result_t<decltype([](int) {}), int>>);
+    SUCCEED();
 }
 
 TEST_CASE("Optional: OrElse recovers from empty state", "[types][optional][or_else]") {

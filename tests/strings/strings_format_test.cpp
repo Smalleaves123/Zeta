@@ -34,6 +34,16 @@ TEST_CASE("format: positional placeholders", "[strings][format]") {
     REQUIRE(s == "hello world");
 }
 
+TEST_CASE("format: malformed placeholder is literal", "[strings][format][edge]") {
+    auto s = zeta::Format("a{b");
+    REQUIRE(s == "a{b");
+}
+
+TEST_CASE("format: malformed placeholder does not consume auto index", "[strings][format][edge]") {
+    auto s = zeta::Format("a{b {} {}", "x", "y");
+    REQUIRE(s == "a{b x y");
+}
+
 TEST_CASE("format: empty format string", "[strings][format]") {
     auto s = zeta::Format("");
     REQUIRE(s == "");

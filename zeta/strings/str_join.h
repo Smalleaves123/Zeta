@@ -12,6 +12,7 @@
 ///   std::string s = zeta::StrJoin(v, ", ");  // "1, 2, 3"
 
 #include <cstddef>
+#include <initializer_list>
 #include <iterator>
 #include <string>
 #include <string_view>

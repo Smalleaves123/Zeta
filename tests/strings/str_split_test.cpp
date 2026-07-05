@@ -115,6 +115,15 @@ TEST_CASE("StrSplit: string delimiter equals input", "[str_split][edge]") {
     REQUIRE(parts[1] == "");
 }
 
+TEST_CASE("StrSplit: empty string delimiter returns whole input", "[str_split][edge]") {
+    std::vector<std::string_view> parts;
+    for (auto p : zeta::StrSplit("abc", "")) {
+        parts.push_back(p);
+    }
+    REQUIRE(parts.size() == 1);
+    REQUIRE(parts[0] == "abc");
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // ByAnyChar delimiter
 // ═══════════════════════════════════════════════════════════════════

@@ -104,12 +104,20 @@ template <typename... Args>
                 if (p + 1 != end && *(p + 1) == '{') {
                     result += '{';
                     p += 2;
+                } else if (p + 1 != end && *(p + 1) == '}') {
+                    if (auto_index < static_cast<int>(kNumArgs)) {
+                        result += pieces[auto_index].piece();
+                    }
+                    ++auto_index;
+                    p += 2;
                 } else {
-                    int idx = auto_index++;
+                    int idx = auto_index;
                     p = strings_internal::ParsePlaceholder(p, end, idx);
                     if (idx >= 0 && static_cast<size_t>(idx) < kNumArgs) {
                         result += pieces[idx].piece();
                         used[idx] = true;
+                    } else {
+                        result += '{';
                     }
                 }
             } else if (*p == '}') {

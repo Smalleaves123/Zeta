@@ -24,6 +24,12 @@ TEST_CASE("function_ref: lambda with capture", "[function_ref]") {
     REQUIRE(ref(5) == 50);
 }
 
+TEST_CASE("function_ref: const lambda", "[function_ref]") {
+    const auto add_two = [](int x) { return x + 2; };
+    zeta::function_ref<int(int)> ref = add_two;
+    REQUIRE(ref(5) == 7);
+}
+
 struct Doubler {
     int operator()(int x) const { return x * 2; }
 };

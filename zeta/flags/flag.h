@@ -66,9 +66,10 @@ public:
     }
 
     [[nodiscard]] std::string_view CurrentValue() const noexcept override {
+        thread_local std::string scratch;
         std::lock_guard<std::mutex> lock(mu_);
-        buf_ = ToString(value_);
-        return buf_;
+        scratch = ToString(value_);
+        return scratch;
     }
 
     [[nodiscard]] std::string_view TypeName() const noexcept override {
@@ -85,7 +86,6 @@ public:
 private:
     T value_;
     T default_;
-    mutable std::string buf_;  // scratch for CurrentValue()
     mutable std::mutex mu_;
 
     template <typename U>

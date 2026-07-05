@@ -130,14 +130,16 @@ public:
         requires std::invocable<F&, const Status&>
     [[nodiscard]] StatusOr<void> OrElse(F&& f) const& {
         if (ok()) return *this;
-        return StatusOr<void>(std::invoke(std::forward<F>(f), status_));
+        std::invoke(std::forward<F>(f), status_);
+        return StatusOr<void>();
     }
 
     template <typename F>
         requires std::invocable<F&, Status>
     [[nodiscard]] StatusOr<void> OrElse(F&& f) && {
         if (ok()) return std::move(*this);
-        return StatusOr<void>(std::invoke(std::forward<F>(f), std::move(status_)));
+        std::invoke(std::forward<F>(f), std::move(status_));
+        return StatusOr<void>();
     }
 
     [[nodiscard]] const Status& status() const& noexcept { return status_; }
@@ -231,6 +233,7 @@ public:
 
     StatusOr(const StatusOr& other)
         noexcept(std::is_nothrow_copy_constructible_v<T>)
+        requires std::copy_constructible<T>
         : status_(other.status_) {
         copy_from(other);
     }
@@ -238,7 +241,8 @@ public:
     StatusOr& operator=(const StatusOr& other)
         noexcept(std::is_nothrow_copy_constructible_v<T> &&
                  std::is_nothrow_move_constructible_v<T> &&
-                 std::is_nothrow_swappable_v<T>) {
+                 std::is_nothrow_swappable_v<T>)
+        requires std::copy_constructible<T> && std::swappable<T> {
         if (this != &other) {
             StatusOr tmp(other);
             swap(tmp);
@@ -289,16 +293,22 @@ public:
         }
 
         if (has_value_ && !other.has_value_) {
-            Status other_status = std::move(other.status_);
             T tmp(std::move(*value_ptr()));
             other.construct_value(std::move(tmp));
+            Status other_status = std::move(other.status_);
             destroy_value();
             status_ = std::move(other_status);
+            other.status_ = OkStatus();
             return;
         }
 
         if (!has_value_ && other.has_value_) {
-            other.swap(*this);
+            T tmp(std::move(*other.value_ptr()));
+            construct_value(std::move(tmp));
+            Status this_status = std::move(status_);
+            other.destroy_value();
+            other.status_ = std::move(this_status);
+            status_ = OkStatus();
             return;
         }
 

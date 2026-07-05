@@ -443,6 +443,11 @@ TEST_CASE("InlinedVector: move-only type", "[inlined_vector]") {
     REQUIRE(v.size() == 2);
 }
 
+TEST_CASE("InlinedVector: move-only types are not copyable", "[inlined_vector][compile]") {
+    static_assert(!std::is_copy_constructible_v<zeta::InlinedVector<std::unique_ptr<int>, 4>>);
+    static_assert(!std::is_copy_assignable_v<zeta::InlinedVector<std::unique_ptr<int>, 4>>);
+}
+
 TEST_CASE("InlinedVector: operator==", "[inlined_vector]") {
     zeta::InlinedVector<int, 4> a = {1, 2, 3};
     zeta::InlinedVector<int, 4> b = {1, 2, 3};

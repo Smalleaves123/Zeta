@@ -78,6 +78,22 @@ TEST_CASE("flags: ParseCommandLine with known flags", "[flags]") {
     FLAGS_test_verbose.Set(false);
 }
 
+TEST_CASE("flags: ParseCommandLine supports --noflag for bools", "[flags]") {
+    FLAGS_test_verbose.Set(true);
+
+    char arg0[] = "program";
+    char arg1[] = "--notest_verbose";
+    char* argv[] = {arg0, arg1};
+    int argc = 2;
+
+    auto rest = zeta::ParseCommandLine(argc, argv);
+
+    REQUIRE(rest.empty());
+    REQUIRE(FLAGS_test_verbose.Get() == false);
+
+    FLAGS_test_verbose.Set(false);
+}
+
 TEST_CASE("flags: TypeName returns correct types", "[flags]") {
     zeta::Flag<int32_t> f1("a", "", __FILE__, 0);
     zeta::Flag<bool>     f2("b", "", __FILE__, false);

@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
@@ -124,11 +125,13 @@ public:
         root_ = std::make_unique<Node>();
     }
 
-    Btree(const Btree& other) {
+    Btree(const Btree& other)
+        requires std::copy_constructible<value_type> {
         root_ = std::make_unique<Node>();
         for (auto& v : other) insert(value_type(v));
     }
-    Btree& operator=(const Btree& other) {
+    Btree& operator=(const Btree& other)
+        requires std::copy_constructible<value_type> {
         if (this != &other) { clear(); for (auto& v : other) insert(value_type(v)); }
         return *this;
     }

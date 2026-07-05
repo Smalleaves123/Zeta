@@ -59,9 +59,6 @@ inline std::vector<std::string_view> ParseCommandLine(int argc, char** argv) {
             value = name.substr(eq + 1);
             name  = name.substr(0, eq);
         } else {
-            // Bare --flag (no '=') → "true".  The flag's Parse()
-            // determines whether that's valid for its type.
-            // Use --flag=false to explicitly set false.
             value = "true";
         }
 
@@ -81,6 +78,25 @@ inline std::vector<std::string_view> ParseCommandLine(int argc, char** argv) {
                 }
                 found = true;
                 break;
+            }
+        }
+        if (!found && eq == std::string_view::npos && name.size() > 2 &&
+            name.substr(0, 2) == "no") {
+            std::string_view stripped = name.substr(2);
+            for (auto* f = flags_internal::FlagEntry::Head();
+                 f != nullptr; f = f->Next()) {
+                if (f->Name() == stripped) {
+                    if (!f->Parse("false")) {
+                        std::fprintf(stderr,
+                            "ERROR: invalid value \"false\" for --%.*s (type: %.*s)\n",
+                            static_cast<int>(stripped.size()), stripped.data(),
+                            static_cast<int>(f->TypeName().size()),
+                            f->TypeName().data());
+                        std::exit(1);
+                    }
+                    found = true;
+                    break;
+                }
             }
         }
         if (!found) {

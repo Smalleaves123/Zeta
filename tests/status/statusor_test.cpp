@@ -304,6 +304,18 @@ TEST_CASE("StatusOr: AndThen chains success paths", "[statusor][and_then]") {
     REQUIRE(chained.value() == "42");
 }
 
+TEST_CASE("StatusOr: swap exchanges value and error states", "[statusor][swap]") {
+    zeta::StatusOr<int> value(7);
+    zeta::StatusOr<int> error(zeta::InternalError("boom"));
+
+    value.swap(error);
+
+    REQUIRE(!value.ok());
+    REQUIRE(value.status().code() == zeta::StatusCode::kInternal);
+    REQUIRE(error.ok());
+    REQUIRE(error.value() == 7);
+}
+
 TEST_CASE("StatusOr: OrElse recovers from errors", "[statusor][or_else]") {
     zeta::StatusOr<int> r(zeta::UnavailableError("transient"));
     auto recovered = r.OrElse([](const zeta::Status&) {
@@ -396,6 +408,16 @@ TEST_CASE("StatusOr<void>: AndThen can continue a success-only flow", "[statusor
     REQUIRE(chained.value() == "done");
 }
 
+TEST_CASE("StatusOr<void>: OrElse can recover to OK", "[statusor][void][or_else]") {
+    bool handled = false;
+    zeta::StatusOr<void> r(zeta::InternalError("boom"));
+    auto recovered = r.OrElse([&](const zeta::Status&) {
+        handled = true;
+    });
+    REQUIRE(handled);
+    REQUIRE(recovered.ok());
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Compile-time safety
 // ═══════════════════════════════════════════════════════════════════
@@ -406,4 +428,9 @@ TEST_CASE("StatusOr<void>: AndThen can continue a success-only flow", "[statusor
 TEST_CASE("StatusOr: size is reasonable for primitive T", "[statusor][compile]") {
     // Status(16) + int(4) + bool(1) + padding = ~24 on most platforms
     REQUIRE(sizeof(zeta::StatusOr<int>) >= 16 + 4);
+}
+
+TEST_CASE("StatusOr: move-only types are not copyable", "[statusor][compile]") {
+    static_assert(!std::is_copy_constructible_v<zeta::StatusOr<std::unique_ptr<int>>>);
+    static_assert(!std::is_copy_assignable_v<zeta::StatusOr<std::unique_ptr<int>>>);
 }

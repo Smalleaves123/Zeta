@@ -96,6 +96,7 @@ Available module targets currently include:
 - `zeta::hash`
 - `zeta::log`
 - `zeta::memory`
+- `zeta::futures`
 - `zeta::meta`
 - `zeta::numeric`
 - `zeta::random`
@@ -128,6 +129,7 @@ cpp-/
 │   ├── container/                    # Hash and ordered containers
 │   │   └── internal/                 # Container internals, not API-stable
 │   ├── memory/                       # Views and callable adapters
+│   ├── futures/                      # Promise / future contract and chaining
 │   ├── synchronization/              # Mutex / once / notification
 │   ├── hash/                         # Hash framework
 │   ├── random/                       # PRNG and distributions
@@ -208,7 +210,36 @@ auto tail = s.subspan(1);  // view of {2, 3}
 
 ---
 
-### 3. `zeta/strings/str_cat.h` — `StrCat` / `StrAppend`
+### 3. `zeta/memory/any_invocable.h`
+
+Move-only owning callable wrapper for cases where `function_ref` is too short-lived
+and `std::function` is too copy-oriented.
+
+```cpp
+#include <zeta/memory/any_invocable.h>
+
+zeta::AnyInvocable<int(int)> fn =
+    [offset = std::make_unique<int>(40)](int x) { return x + *offset; };
+
+int answer = fn(2);  // 42
+```
+
+---
+
+### 4. `zeta/memory/bind_front.h`
+
+Front-binds leading arguments without the ceremony or type-erasure cost of `std::bind`.
+
+```cpp
+#include <zeta/memory/bind_front.h>
+
+auto add_40 = zeta::bind_front([](int a, int b) { return a + b; }, 40);
+int answer = add_40(2);  // 42
+```
+
+---
+
+### 5. `zeta/strings/str_cat.h` — `StrCat` / `StrAppend`
 
 Efficient variadic concatenation. Unlike `a + b + c` (which creates intermediate temporaries), `StrCat` pre-computes the total length and performs **one allocation**.
 
@@ -227,7 +258,7 @@ Supported types: `const char*`, `std::string`, `std::string_view`, `char`, `bool
 
 ---
 
-### 4. `zeta/strings/str_split.h` — `StrSplit`
+### 6. `zeta/strings/str_split.h` — `StrSplit`
 
 Zero-copy split yielding `std::string_view` pieces. No heap allocations, no substring copies.
 
@@ -261,7 +292,7 @@ for (auto p : StrSplit("a:b:c:d:e", ':', MaxSplits_t{3}))
 
 ---
 
-### 5. `zeta/strings/str_join.h` — `StrJoin`
+### 7. `zeta/strings/str_join.h` — `StrJoin`
 
 Join elements of a range with a delimiter. Pre-computes total length for a single allocation.
 
@@ -280,7 +311,7 @@ std::string dash = zeta::StrJoin({"x", "y", "z"}, "-"); // "x-y-z"
 
 ---
 
-### 6. `zeta/strings/str_utils.h` — Predicates, Stripping, Replacement
+### 8. `zeta/strings/str_utils.h` — Predicates, Stripping, Replacement
 
 ```cpp
 #include <zeta/strings/str_utils.h>
@@ -307,7 +338,7 @@ std::string s = zeta::StrReplaceAll("a,b,c", ",", "|");    // "a|b|c"
 
 ---
 
-### 7. `zeta/container/flat_hash_map.h` & `flat_hash_set.h`
+### 9. `zeta/container/flat_hash_map.h` & `flat_hash_set.h`
 
 Swiss Table hash containers. Typically **2–3× faster** than `std::unordered_map` with ~30% less memory.
 
