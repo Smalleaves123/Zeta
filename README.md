@@ -393,6 +393,23 @@ hm["hello"] = 42;
 auto it = hm.find("hello"sv);  // no std::string constructed!
 ```
 
+---
+
+### 10. `zeta/container/fixed_array.h` — `FixedArray<T, N>`
+
+Runtime-sized fixed array with inline storage for small counts and heap spill for larger ones.
+
+```cpp
+#include <zeta/container/fixed_array.h>
+
+zeta::FixedArray<int, 8> values(4, 7);
+values[2] = 42;
+
+for (int v : values) {
+    std::cout << v << "\n";
+}
+```
+
 ### 8. `zeta/status/result.h`
 
 `zeta::Result<T>` is an alias for `zeta::StatusOr<T>` when a result-oriented name is clearer in application code.

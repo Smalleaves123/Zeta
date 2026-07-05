@@ -4,6 +4,7 @@ zeta_module(container
     HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/btree_map.h
     ${CMAKE_CURRENT_SOURCE_DIR}/btree_set.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/fixed_array.h
     ${CMAKE_CURRENT_SOURCE_DIR}/flat_hash_map.h
     ${CMAKE_CURRENT_SOURCE_DIR}/flat_hash_set.h
     ${CMAKE_CURRENT_SOURCE_DIR}/inlined_vector.h
