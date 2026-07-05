@@ -405,6 +405,13 @@ public:
         return iterator_at(idx + 1); // next valid
     }
 
+    iterator erase(const_iterator first, const_iterator last) {
+        while (first != last) {
+            first = erase(first);
+        }
+        return iterator_at(static_cast<size_t>(first.slot_ - slots_));
+    }
+
     // SFINAE guard: K must not be iterator or const_iterator
     template <typename K = key_type,
               typename = std::enable_if_t<

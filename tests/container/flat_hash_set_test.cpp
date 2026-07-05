@@ -142,6 +142,22 @@ TEST_CASE("flat_hash_set: erase by iterator", "[set]") {
     (void)next;
 }
 
+TEST_CASE("flat_hash_set: erase range", "[set]") {
+    zeta::flat_hash_set<int> s = {1, 2, 3, 4};
+    auto first = s.find(2);
+    auto last = s.find(4);
+    REQUIRE(first != s.end());
+    REQUIRE(last != s.end());
+
+    s.erase(first, last);
+
+    REQUIRE(s.size() == 2);
+    REQUIRE(s.contains(1));
+    REQUIRE(!s.contains(2));
+    REQUIRE(!s.contains(3));
+    REQUIRE(s.contains(4));
+}
+
 TEST_CASE("flat_hash_set: erase from empty", "[set][edge]") {
     zeta::flat_hash_set<int> s;
     REQUIRE(s.erase(1) == 0);
@@ -294,6 +310,22 @@ TEST_CASE("flat_hash_set: heterogeneous lookup", "[set][hetero]") {
     REQUIRE(s.erase("world"sv) == 1);
     REQUIRE(s.count("hello"sv) == 1);
     REQUIRE(s.count("world"sv) == 0);
+}
+
+TEST_CASE("flat_hash_set: erase_if removes matching entries", "[set][erase_if]") {
+    zeta::flat_hash_set<int> s = {1, 2, 3, 4, 5};
+
+    auto removed = zeta::erase_if(s, [](int value) {
+        return value >= 3;
+    });
+
+    REQUIRE(removed == 3);
+    REQUIRE(s.size() == 2);
+    REQUIRE(s.contains(1));
+    REQUIRE(s.contains(2));
+    REQUIRE(!s.contains(3));
+    REQUIRE(!s.contains(4));
+    REQUIRE(!s.contains(5));
 }
 
 // ── Stress / edge ─────────────────────────────────────────────────

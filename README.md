@@ -434,6 +434,7 @@ zeta::Result<int> ParseInt(std::string_view s);
 | `insert_or_assign(key, value)` | Overwrite if key exists (map only) |
 | `erase(key)` | Heterogeneous erase |
 | `erase(iterator)` | Erase by position |
+| `erase(first, last)` | Erase iterator range |
 | `clear()` | Remove all elements |
 | `swap(other)` | O(1) pointer swap |
 | `reserve(n)` / `rehash(n)` | Pre-allocate buckets |

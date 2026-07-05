@@ -149,6 +149,9 @@ public:
 
     // ── Erase ─────────────────────────────────────────────────────
     iterator erase(const_iterator pos) { return table_.erase(pos); }
+    iterator erase(const_iterator first, const_iterator last) {
+        return table_.erase(first, last);
+    }
 
     template <typename LK = K,
               typename = std::enable_if_t<
@@ -174,6 +177,20 @@ public:
 private:
     Impl table_;
 };
+
+template <typename K, typename V, typename Hash, typename KeyEq, typename Pred>
+size_t erase_if(flat_hash_map<K, V, Hash, KeyEq>& map, Pred pred) {
+    size_t removed = 0;
+    for (auto it = map.begin(); it != map.end();) {
+        if (pred(*it)) {
+            it = map.erase(it);
+            ++removed;
+        } else {
+            ++it;
+        }
+    }
+    return removed;
+}
 
 } // namespace zeta
 

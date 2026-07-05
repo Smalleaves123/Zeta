@@ -132,6 +132,23 @@ TEST_CASE("flat_hash_map: erase by iterator", "[map]") {
     (void)next;
 }
 
+TEST_CASE("flat_hash_map: erase range", "[map]") {
+    zeta::flat_hash_map<int, std::string> m = {
+        {1, "one"}, {2, "two"}, {3, "three"}, {4, "four"}};
+    auto first = m.find(2);
+    auto last = m.find(4);
+    REQUIRE(first != m.end());
+    REQUIRE(last != m.end());
+
+    m.erase(first, last);
+
+    REQUIRE(m.size() == 2);
+    REQUIRE(m.contains(1));
+    REQUIRE(!m.contains(2));
+    REQUIRE(!m.contains(3));
+    REQUIRE(m.contains(4));
+}
+
 TEST_CASE("flat_hash_map: erase from empty", "[map][edge]") {
     zeta::flat_hash_map<int, std::string> m;
     REQUIRE(m.erase(1) == 0);
@@ -247,6 +264,21 @@ TEST_CASE("flat_hash_map: heterogeneous lookup", "[map][hetero]") {
 
     REQUIRE(m.count("hello"sv) == 1);
     REQUIRE(m.erase("world"sv) == 1);
+}
+
+TEST_CASE("flat_hash_map: erase_if removes matching entries", "[map][erase_if]") {
+    zeta::flat_hash_map<int, int> m = {{1, 10}, {2, 20}, {3, 30}, {4, 40}};
+
+    auto removed = zeta::erase_if(m, [](const auto& entry) {
+        return entry.first % 2 == 0;
+    });
+
+    REQUIRE(removed == 2);
+    REQUIRE(m.size() == 2);
+    REQUIRE(m.contains(1));
+    REQUIRE(!m.contains(2));
+    REQUIRE(m.contains(3));
+    REQUIRE(!m.contains(4));
 }
 
 TEST_CASE("flat_hash_map: heterogeneous at()", "[map][hetero]") {
