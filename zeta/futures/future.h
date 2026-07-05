@@ -25,8 +25,10 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <thread>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace zeta {
 
@@ -76,6 +78,22 @@ struct UnwrapStatusOr<StatusOr<U>> {
 
 template <typename T>
 using UnwrapStatusOrT = typename UnwrapStatusOr<std::remove_cvref_t<T>>::type;
+
+template <typename T>
+struct WhenAllResult {
+    using type = std::vector<T>;
+};
+
+template <>
+struct WhenAllResult<void> {
+    using type = void;
+};
+
+template <typename T>
+using WhenAllResultT = typename WhenAllResult<T>::type;
+
+template <typename T>
+using IndexedResult = std::pair<std::size_t, StatusOr<T>>;
 
 template <typename T>
 struct FutureState {
@@ -143,6 +161,153 @@ inline StatusOr<T> MakeInvalidFutureResult() {
 template <>
 inline StatusOr<void> MakeInvalidFutureResult<void>() {
     return StatusOr<void>(InternalError("future is not valid"));
+}
+
+template <typename T>
+inline void SetWhenAllPromiseResult(
+    Promise<WhenAllResultT<T>>& promise,
+    std::vector<StatusOr<T>>&& results) {
+    if constexpr (std::is_void_v<T>) {
+        for (auto& result : results) {
+            if (!result.ok()) {
+                (void)promise.SetError(std::move(result).status());
+                return;
+            }
+        }
+        (void)promise.SetValue();
+    } else {
+        std::vector<T> values;
+        values.reserve(results.size());
+        for (auto& result : results) {
+            if (!result.ok()) {
+                (void)promise.SetError(std::move(result).status());
+                return;
+            }
+            values.push_back(std::move(result).value());
+        }
+        (void)promise.SetValue(std::move(values));
+    }
+}
+
+template <typename T>
+inline Future<std::vector<StatusOr<T>>> StartCollectAll(
+    std::vector<Future<T>> futures) {
+    auto [promise, future] = makePromiseContract<std::vector<StatusOr<T>>>();
+
+    std::thread([promise = std::move(promise), futures = std::move(futures)]() mutable {
+        std::vector<StatusOr<T>> results;
+        results.reserve(futures.size());
+        for (auto& future_item : futures) {
+            results.push_back(std::move(future_item).Get());
+        }
+        (void)promise.SetValue(std::move(results));
+    }).detach();
+
+    return std::move(future);
+}
+
+template <typename T>
+inline Future<WhenAllResultT<T>> StartWhenAll(
+    std::vector<Future<T>> futures) {
+    auto [promise, future] = makePromiseContract<WhenAllResultT<T>>();
+
+    std::thread([promise = std::move(promise), futures = std::move(futures)]() mutable {
+        std::vector<StatusOr<T>> results;
+        results.reserve(futures.size());
+        for (auto& future_item : futures) {
+            results.push_back(std::move(future_item).Get());
+        }
+        SetWhenAllPromiseResult<T>(promise, std::move(results));
+    }).detach();
+
+    return std::move(future);
+}
+
+template <typename T>
+struct CollectSomeSharedState {
+    std::mutex mutex;
+    std::size_t target = 0;
+    bool done = false;
+    std::vector<IndexedResult<T>> results;
+    std::shared_ptr<Promise<std::vector<IndexedResult<T>>>> promise;
+};
+
+template <typename T>
+inline Future<std::vector<IndexedResult<T>>> StartCollectN(
+    std::vector<Future<T>> futures,
+    std::size_t count) {
+    auto [promise, future] = makePromiseContract<std::vector<IndexedResult<T>>>();
+
+    if (count == 0) {
+        (void)promise.SetValue({});
+        return std::move(future);
+    }
+
+    if (futures.empty()) {
+        (void)promise.SetError(InvalidArgumentError("collectN requires at least one future"));
+        return std::move(future);
+    }
+
+    auto shared = std::make_shared<CollectSomeSharedState<T>>();
+    shared->target = std::min(count, futures.size());
+    shared->results.reserve(shared->target);
+    shared->promise =
+        std::make_shared<Promise<std::vector<IndexedResult<T>>>>(std::move(promise));
+
+    for (std::size_t index = 0; index < futures.size(); ++index) {
+        std::thread([shared, index, future_item = std::move(futures[index])]() mutable {
+            IndexedResult<T> completion(index, std::move(future_item).Get());
+            std::optional<std::vector<IndexedResult<T>>> ready_results;
+
+            {
+                std::lock_guard<std::mutex> lock(shared->mutex);
+                if (shared->done) {
+                    return;
+                }
+
+                shared->results.push_back(std::move(completion));
+                if (shared->results.size() == shared->target) {
+                    shared->done = true;
+                    ready_results.emplace(std::move(shared->results));
+                }
+            }
+
+            if (ready_results.has_value()) {
+                (void)shared->promise->SetValue(std::move(*ready_results));
+            }
+        }).detach();
+    }
+
+    return std::move(future);
+}
+
+template <typename T>
+inline Future<IndexedResult<T>> StartCollectAny(
+    std::vector<Future<T>> futures) {
+    auto [promise, future] = makePromiseContract<IndexedResult<T>>();
+
+    if (futures.empty()) {
+        (void)promise.SetError(InvalidArgumentError("collectAny requires at least one future"));
+        return std::move(future);
+    }
+
+    auto grouped = StartCollectN<T>(std::move(futures), 1);
+    std::thread([promise = std::move(promise), grouped = std::move(grouped)]() mutable {
+        auto results = std::move(grouped).Get();
+        if (!results.ok()) {
+            (void)promise.SetError(std::move(results).status());
+            return;
+        }
+
+        if (results.value().empty()) {
+            (void)promise.SetError(InternalError("collectAny produced no results"));
+            return;
+        }
+
+        (void)promise.SetValue(std::move(results.value().front()));
+    }).detach();
+
+    return std::move(future);
 }
 
 } // namespace detail
@@ -639,6 +804,76 @@ std::pair<Promise<T>, Future<T>> makePromiseContract() {
     Promise<T> promise(state);
     promise.future_taken_ = true;
     return {std::move(promise), Future<T>(std::move(state))};
+}
+
+template <typename T>
+[[nodiscard]] Future<std::vector<StatusOr<T>>> collectAll(
+    std::vector<Future<T>> futures) {
+    return detail::StartCollectAll<T>(std::move(futures));
+}
+
+template <typename T>
+[[nodiscard]] Future<std::vector<StatusOr<T>>> collectAll(
+    std::vector<SemiFuture<T>> futures) {
+    std::vector<Future<T>> converted;
+    converted.reserve(futures.size());
+    for (auto& future : futures) {
+        converted.push_back(std::move(future).ToFuture());
+    }
+    return detail::StartCollectAll<T>(std::move(converted));
+}
+
+template <typename T>
+[[nodiscard]] Future<detail::WhenAllResultT<T>> whenAll(
+    std::vector<Future<T>> futures) {
+    return detail::StartWhenAll<T>(std::move(futures));
+}
+
+template <typename T>
+[[nodiscard]] Future<detail::WhenAllResultT<T>> whenAll(
+    std::vector<SemiFuture<T>> futures) {
+    std::vector<Future<T>> converted;
+    converted.reserve(futures.size());
+    for (auto& future : futures) {
+        converted.push_back(std::move(future).ToFuture());
+    }
+    return detail::StartWhenAll<T>(std::move(converted));
+}
+
+template <typename T>
+[[nodiscard]] Future<detail::IndexedResult<T>> collectAny(
+    std::vector<Future<T>> futures) {
+    return detail::StartCollectAny<T>(std::move(futures));
+}
+
+template <typename T>
+[[nodiscard]] Future<detail::IndexedResult<T>> collectAny(
+    std::vector<SemiFuture<T>> futures) {
+    std::vector<Future<T>> converted;
+    converted.reserve(futures.size());
+    for (auto& future : futures) {
+        converted.push_back(std::move(future).ToFuture());
+    }
+    return detail::StartCollectAny<T>(std::move(converted));
+}
+
+template <typename T>
+[[nodiscard]] Future<std::vector<detail::IndexedResult<T>>> collectN(
+    std::vector<Future<T>> futures,
+    std::size_t count) {
+    return detail::StartCollectN<T>(std::move(futures), count);
+}
+
+template <typename T>
+[[nodiscard]] Future<std::vector<detail::IndexedResult<T>>> collectN(
+    std::vector<SemiFuture<T>> futures,
+    std::size_t count) {
+    std::vector<Future<T>> converted;
+    converted.reserve(futures.size());
+    for (auto& future : futures) {
+        converted.push_back(std::move(future).ToFuture());
+    }
+    return detail::StartCollectN<T>(std::move(converted), count);
 }
 
 } // namespace zeta

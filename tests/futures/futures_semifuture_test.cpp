@@ -10,6 +10,7 @@
 #include <queue>
 #include <thread>
 #include <utility>
+#include <vector>
 
 namespace {
 
@@ -94,4 +95,51 @@ TEST_CASE("SemiFuture: ToFuture keeps the same shared state", "[futures][semifut
     auto result = std::move(back).Get();
     REQUIRE(result.ok());
     REQUIRE(result.value() == 7);
+}
+
+TEST_CASE("SemiFuture: collectAll accepts semi futures", "[futures][semifuture][collect_all]") {
+    BackgroundExecutor executor;
+    auto [p1, f1] = zeta::makePromiseContract<int>();
+    auto [p2, f2] = zeta::makePromiseContract<int>();
+
+    std::vector<zeta::SemiFuture<int>> futures;
+    futures.push_back(std::move(f1).Via(executor));
+    futures.push_back(std::move(f2).Via(executor));
+    auto grouped = zeta::collectAll<int>(std::move(futures));
+
+    REQUIRE(p1.SetValue(10).ok());
+    REQUIRE(p2.SetValue(32).ok());
+
+    auto result = std::move(grouped).Get();
+    REQUIRE(result.ok());
+    REQUIRE(result.value().size() == 2);
+    REQUIRE(result.value()[0].value() == 10);
+    REQUIRE(result.value()[1].value() == 32);
+}
+
+TEST_CASE("SemiFuture: collectN accepts semi futures", "[futures][semifuture][collect_n]") {
+    BackgroundExecutor executor;
+    auto [p1, f1] = zeta::makePromiseContract<int>();
+    auto [p2, f2] = zeta::makePromiseContract<int>();
+    auto [p3, f3] = zeta::makePromiseContract<int>();
+
+    std::vector<zeta::SemiFuture<int>> futures;
+    futures.push_back(std::move(f1).Via(executor));
+    futures.push_back(std::move(f2).Via(executor));
+    futures.push_back(std::move(f3).Via(executor));
+    auto grouped = zeta::collectN<int>(std::move(futures), 2);
+
+    REQUIRE(p2.SetValue(20).ok());
+    REQUIRE(p3.SetError(zeta::InvalidArgumentError("bad")).ok());
+    REQUIRE(p1.SetValue(10).ok());
+
+    auto result = std::move(grouped).Get();
+    REQUIRE(result.ok());
+    REQUIRE(result.value().size() == 2);
+    REQUIRE(result.value()[0].first == 1);
+    REQUIRE(result.value()[0].second.ok());
+    REQUIRE(result.value()[0].second.value() == 20);
+    REQUIRE(result.value()[1].first == 2);
+    REQUIRE(!result.value()[1].second.ok());
+    REQUIRE(result.value()[1].second.status().code() == zeta::StatusCode::kInvalidArgument);
 }
