@@ -12,6 +12,8 @@ monolithic infrastructure library.
 - `zeta::zeta` stays available as a compatibility umbrella target.
 - New APIs should land in a domain module, not in a generic catch-all header.
 - Tests should read like usage examples for the public API, not just assertions.
+- Future cancellation is cooperative; executors are borrowed and must outlive
+  all continuations scheduled through `Via()`.
 
 ## Stable Module Families
 

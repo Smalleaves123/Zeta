@@ -109,3 +109,38 @@ jobs:
         run: cmake --build build/package-smoke
       - name: Consumer Run
         run: ./build/package-smoke/zeta_package_smoke_test
+
+  fuzz-smoke:
+    name: Fuzz Smoke Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: >
+          cmake -S . -B build/fuzz-smoke
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DZETA_BUILD_TESTS=OFF
+          -DZETA_BUILD_FUZZERS=ON
+      - name: Build
+        run: cmake --build build/fuzz-smoke --parallel 4
+      - name: Run portable fuzz smoke tests
+        run: |
+          targets=(
+            strings_split_fuzz
+            strings_utils_fuzz
+            strings_join_fuzz
+            strings_format_fuzz
+            strings_str_cat_fuzz
+            strings_numbers_fuzz
+            hash_hash_fuzz
+            numeric_int128_fuzz
+            status_status_fuzz
+            status_statusor_fuzz
+            container_inlined_vector_fuzz
+            container_btree_map_fuzz
+            container_node_hash_map_fuzz
+            random_random_fuzz
+          )
+          for target in "${targets[@]}"; do
+            ./build/fuzz-smoke/fuzz/${target}
+          done

@@ -9,8 +9,11 @@ cmake -S . -B build-fuzz -DZETA_BUILD_FUZZERS=ON -DZETA_BUILD_TESTS=OFF
 cmake --build build-fuzz
 ```
 
-If your toolchain does not ship libFuzzer by default, override
-`ZETA_FUZZING_ENGINE`.
+The default build uses a portable smoke-test main and AddressSanitizer/UBSan.
+It does not require libFuzzer and is suitable for local and CI smoke runs.
+
+To use libFuzzer, set `ZETA_FUZZING_ENGINE`. In engine mode the portable main
+is omitted and the supplied engine provides the fuzzing entry point.
 
 Examples:
 
@@ -29,17 +32,22 @@ Single target:
 ./build-fuzz/fuzz/strings_split_fuzz
 ```
 
-With a seed corpus:
+With one input file:
 
 ```bash
-./build-fuzz/fuzz/strings_split_fuzz fuzz/corpus/strings_split_fuzz
+./build-fuzz/fuzz/strings_split_fuzz fuzz/corpus/strings_split_fuzz/seed.txt
 ```
 
-Persist new interesting inputs:
+The portable smoke harness also runs a small built-in corpus. Corpus
+directories and libFuzzer runtime flags are supported when using engine mode:
 
 ```bash
-mkdir -p fuzz/artifacts/strings_split_fuzz
-./build-fuzz/fuzz/strings_split_fuzz \
+cmake -S . -B build-fuzz-engine \
+  -DZETA_BUILD_FUZZERS=ON \
+  -DZETA_BUILD_TESTS=OFF \
+  -DZETA_FUZZING_ENGINE='-fsanitize=fuzzer,address,undefined'
+cmake --build build-fuzz-engine
+./build-fuzz-engine/fuzz/strings_split_fuzz \
   fuzz/corpus/strings_split_fuzz \
   -artifact_prefix=fuzz/artifacts/strings_split_fuzz/
 ```

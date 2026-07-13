@@ -70,6 +70,43 @@ TEST_CASE("Future: broken promise becomes cancelled status", "[futures]") {
     REQUIRE(result.status().code() == zeta::StatusCode::kCancelled);
 }
 
+TEST_CASE("Future: Promise cancel completes the future", "[futures][cancel]") {
+    auto [promise, future] = zeta::makePromiseContract<int>();
+
+    REQUIRE(promise.Cancel().ok());
+    auto result = std::move(future).Get();
+
+    REQUIRE(!result.ok());
+    REQUIRE(result.status().code() == zeta::StatusCode::kCancelled);
+}
+
+TEST_CASE("Future: GetFor returns deadline exceeded", "[futures][timeout]") {
+    auto [promise, future] = zeta::makePromiseContract<int>();
+
+    auto result = std::move(future).GetFor(std::chrono::milliseconds(5));
+
+    REQUIRE(!result.ok());
+    REQUIRE(result.status().code() == zeta::StatusCode::kDeadlineExceeded);
+}
+
+TEST_CASE("Future: GetFor observes cooperative cancellation", "[futures][cancel]") {
+    auto [promise, future] = zeta::makePromiseContract<int>();
+    zeta::CancellationSource source;
+    auto token = source.GetToken();
+
+    std::thread canceller([&source] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        REQUIRE(source.RequestCancellation());
+        REQUIRE(!source.RequestCancellation());
+    });
+
+    auto result = std::move(future).GetFor(std::chrono::seconds(1), token);
+    canceller.join();
+
+    REQUIRE(!result.ok());
+    REQUIRE(result.status().code() == zeta::StatusCode::kCancelled);
+}
+
 TEST_CASE("Future: double set is rejected", "[futures]") {
     auto [promise, future] = zeta::makePromiseContract<int>();
     REQUIRE(promise.SetValue(7).ok());

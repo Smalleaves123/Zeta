@@ -11,6 +11,7 @@
 ///   - blocking `Wait()` / timed `WaitFor()`
 ///   - `Get()` for value retrieval
 ///   - `Then()` for simple continuation chaining
+///   - cooperative cancellation and bounded `GetFor()` retrieval
 ///
 /// The contract is single-consumer by design.  `Future<T>` is move-only, which
 /// keeps move-only payloads practical without forcing copy semantics.
@@ -18,6 +19,8 @@
 #include "zeta/status/status.h"
 #include "zeta/status/statusor.h"
 
+#include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <condition_variable>
@@ -31,6 +34,55 @@
 
 namespace zeta {
 
+namespace detail {
+
+struct CancellationState {
+    std::atomic<bool> requested{false};
+};
+
+} // namespace detail
+
+/// A read-only handle for observing a cooperative cancellation request.
+class CancellationToken {
+public:
+    CancellationToken() = default;
+
+    [[nodiscard]] bool IsCancellationRequested() const noexcept {
+        return state_ != nullptr &&
+               state_->requested.load(std::memory_order_acquire);
+    }
+
+private:
+    explicit CancellationToken(std::shared_ptr<detail::CancellationState> state)
+        : state_(std::move(state)) {}
+
+    std::shared_ptr<detail::CancellationState> state_;
+
+    friend class CancellationSource;
+};
+
+/// Owns a cancellation request and produces observation tokens.
+class CancellationSource {
+public:
+    CancellationSource()
+        : state_(std::make_shared<detail::CancellationState>()) {}
+
+    [[nodiscard]] CancellationToken GetToken() const noexcept {
+        return CancellationToken(state_);
+    }
+
+    /// Requests cancellation. Returns false if it was already requested.
+    [[nodiscard]] bool RequestCancellation() noexcept {
+        bool expected = false;
+        return state_->requested.compare_exchange_strong(
+            expected, true, std::memory_order_release,
+            std::memory_order_relaxed);
+    }
+
+private:
+    std::shared_ptr<detail::CancellationState> state_;
+};
+
 template <typename T>
 class Future;
 
@@ -43,6 +95,9 @@ class Promise;
 class Executor {
 public:
     virtual ~Executor() = default;
+
+    /// Schedules one task. Executor is non-owning in Future/SemiFuture:
+    /// callers must keep it alive until all attached continuations finish.
     virtual void Add(std::function<void()> task) = 0;
 };
 
@@ -160,6 +215,24 @@ inline StatusOr<T> MakeInvalidFutureResult() {
 template <>
 inline StatusOr<void> MakeInvalidFutureResult<void>() {
     return StatusOr<void>(InternalError("future is not valid"));
+}
+
+template <typename T>
+inline StatusOr<T> ConsumeFutureResult(
+    std::unique_lock<std::mutex>& lock,
+    const std::shared_ptr<FutureState<T>>& state) {
+    if (state->consumed) {
+        return MakeConsumedFutureResult<T>();
+    }
+
+    state->consumed = true;
+    if (!state->result.has_value()) {
+        return MakeInvalidFutureResult<T>();
+    }
+
+    StatusOr<T> out = std::move(*state->result);
+    state->result.reset();
+    return out;
 }
 
 template <typename T>
@@ -383,6 +456,11 @@ public:
         return SetResult(StatusOr<T>(std::move(status)));
     }
 
+    /// Completes the contract with a cooperative cancellation status.
+    [[nodiscard]] Status Cancel() {
+        return SetError(CancelledError("future cancelled"));
+    }
+
     template <typename U = T>
         requires (!std::is_void_v<U>)
     [[nodiscard]] Status SetValue(U value) {
@@ -492,20 +570,42 @@ public:
         }
 
         std::unique_lock<std::mutex> lock(state_->mutex);
-        if (state_->consumed) {
-            return detail::MakeConsumedFutureResult<T>();
-        }
-
         state_->cv.wait(lock, [this] { return state_->ready; });
-        state_->consumed = true;
+        return detail::ConsumeFutureResult(lock, state_);
+    }
 
-        if (!state_->result.has_value()) {
+    /// Waits for a value, timeout, or cooperative cancellation request.
+    /// Cancellation does not terminate a running producer; it only stops this
+    /// wait and returns a cancelled status.
+    template <typename Rep, typename Period>
+    [[nodiscard]] StatusOr<T> GetFor(
+        std::chrono::duration<Rep, Period> timeout,
+        CancellationToken token = {}) && {
+        if (state_ == nullptr) {
             return detail::MakeInvalidFutureResult<T>();
         }
 
-        StatusOr<T> out = std::move(*state_->result);
-        state_->result.reset();
-        return out;
+        std::unique_lock<std::mutex> lock(state_->mutex);
+        const auto timeout_duration =
+            std::chrono::duration_cast<std::chrono::steady_clock::duration>(timeout);
+        const auto poll_interval = std::chrono::duration_cast<
+            std::chrono::steady_clock::duration>(std::chrono::milliseconds(1));
+        const auto deadline = std::chrono::steady_clock::now() + timeout_duration;
+
+        while (!state_->ready) {
+            if (token.IsCancellationRequested()) {
+                return CancelledError("future wait cancelled");
+            }
+            if (timeout_duration <= std::chrono::steady_clock::duration::zero() ||
+                std::chrono::steady_clock::now() >= deadline) {
+                return DeadlineExceededError("future wait timed out");
+            }
+
+            const auto remaining = deadline - std::chrono::steady_clock::now();
+            state_->cv.wait_for(lock, std::min(remaining, poll_interval));
+        }
+
+        return detail::ConsumeFutureResult(lock, state_);
     }
 
     template <typename F>
@@ -665,6 +765,8 @@ public:
         return future;
     }
 
+    /// Moves this future to a non-owning executor view. The executor must
+    /// outlive the returned SemiFuture and every continuation attached to it.
     [[nodiscard]] SemiFuture<T> Via(Executor& executor) &&;
 
 private:
@@ -739,20 +841,40 @@ public:
         }
 
         std::unique_lock<std::mutex> lock(state_->mutex);
-        if (state_->consumed) {
-            return detail::MakeConsumedFutureResult<T>();
-        }
-
         state_->cv.wait(lock, [this] { return state_->ready; });
-        state_->consumed = true;
+        return detail::ConsumeFutureResult(lock, state_);
+    }
 
-        if (!state_->result.has_value()) {
+    /// Waits for a value, timeout, or cooperative cancellation request.
+    template <typename Rep, typename Period>
+    [[nodiscard]] StatusOr<T> GetFor(
+        std::chrono::duration<Rep, Period> timeout,
+        CancellationToken token = {}) && {
+        if (state_ == nullptr) {
             return detail::MakeInvalidFutureResult<T>();
         }
 
-        StatusOr<T> out = std::move(*state_->result);
-        state_->result.reset();
-        return out;
+        std::unique_lock<std::mutex> lock(state_->mutex);
+        const auto timeout_duration =
+            std::chrono::duration_cast<std::chrono::steady_clock::duration>(timeout);
+        const auto poll_interval = std::chrono::duration_cast<
+            std::chrono::steady_clock::duration>(std::chrono::milliseconds(1));
+        const auto deadline = std::chrono::steady_clock::now() + timeout_duration;
+
+        while (!state_->ready) {
+            if (token.IsCancellationRequested()) {
+                return CancelledError("future wait cancelled");
+            }
+            if (timeout_duration <= std::chrono::steady_clock::duration::zero() ||
+                std::chrono::steady_clock::now() >= deadline) {
+                return DeadlineExceededError("future wait timed out");
+            }
+
+            const auto remaining = deadline - std::chrono::steady_clock::now();
+            state_->cv.wait_for(lock, std::min(remaining, poll_interval));
+        }
+
+        return detail::ConsumeFutureResult(lock, state_);
     }
 
     template <typename F>
@@ -920,6 +1042,8 @@ public:
         return Future<T>(std::move(state_));
     }
 
+    /// The executor is borrowed, not owned; keep it alive until this chain is
+    /// fully consumed and all scheduled continuations have finished.
     [[nodiscard]] SemiFuture<T> Via(Executor& executor) && {
         executor_ = &executor;
         return std::move(*this);

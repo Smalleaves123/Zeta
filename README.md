@@ -481,6 +481,27 @@ v.reserve(100);
 
 ---
 
+### 11. `zeta/futures/future.h` — Future / Promise Composition
+
+`Future<T>` is a single-consumer result chain. `Then()` runs only for successful
+values, while `ThenTry()` receives the complete `StatusOr<T>` and is useful for
+fan-in or error-aware adapters.
+
+```cpp
+auto [promise, future] = zeta::makePromiseContract<int>();
+zeta::CancellationSource cancellation;
+
+auto result = std::move(future).GetFor(
+    std::chrono::milliseconds(100), cancellation.GetToken());
+// result is either the value, DeadlineExceeded, or Cancelled.
+```
+
+Cancellation is cooperative: it stops the caller's wait and does not forcibly
+terminate a producer or continuation. `Via()` borrows its `Executor`; the
+executor must outlive the `SemiFuture` and all continuations scheduled on it.
+
+---
+
 ## Design Principles
 
 1. **Modern C++ first.** C++20 throughout — concepts, `if constexpr`, `constexpr` where possible, `[[no_unique_address]]`, `std::to_chars`, fold expressions.

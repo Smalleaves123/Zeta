@@ -83,6 +83,27 @@ TEST_CASE("SemiFuture: Via schedules continuations on executor", "[futures][semi
     REQUIRE(ran_on_background.load(std::memory_order_relaxed));
 }
 
+TEST_CASE("SemiFuture: executor is borrowed and kept alive by the caller",
+          "[futures][semifuture][lifetime]") {
+    std::atomic<bool> completed{false};
+    {
+        BackgroundExecutor executor;
+        auto [promise, future] = zeta::makePromiseContract<int>();
+        auto semi = std::move(future).Via(executor);
+        auto next = std::move(semi).Then([&](int value) {
+            completed.store(true, std::memory_order_relaxed);
+            return value + 1;
+        });
+
+        REQUIRE(promise.SetValue(41).ok());
+        auto result = std::move(next).Get();
+        REQUIRE(result.ok());
+        REQUIRE(result.value() == 42);
+    }
+
+    REQUIRE(completed.load(std::memory_order_relaxed));
+}
+
 TEST_CASE("SemiFuture: ToFuture keeps the same shared state", "[futures][semifuture]") {
     BackgroundExecutor executor;
     auto [promise, future] = zeta::makePromiseContract<int>();
