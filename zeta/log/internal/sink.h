@@ -13,6 +13,7 @@
 #include <string_view>
 #include <thread>
 
+#include "zeta/log/record.h"
 #include "zeta/log/internal/severity.h"
 #include "zeta/time/timestamp.h"
 
@@ -26,13 +27,6 @@ namespace log_internal {
 [[nodiscard]] inline std::string FormatTimestamp() {
     return zeta::FormatNow();
 }
-
-struct LogRecordView {
-    LogSeverity severity;
-    const char* file;
-    int line;
-    std::string_view message;
-};
 
 class LogFormatter {
 public:
@@ -49,7 +43,11 @@ public:
             << SeverityName(record.severity) << "] [tid="
             << std::this_thread::get_id() << "] "
             << record.file << ':' << record.line << ": "
-            << record.message << '\n';
+            << record.message;
+        for (const auto& field : record.fields) {
+            out << " [" << field.key << '=' << field.value << ']';
+        }
+        out << '\n';
         return out.str();
     }
 };
@@ -100,12 +98,16 @@ public:
     LogSink(const LogSink&) = delete;
     LogSink& operator=(const LogSink&) = delete;
 
+    virtual void Send(const LogRecordView& record) noexcept {
+        std::string formatted = ActiveFormatter()->Format(record);
+        std::fwrite(formatted.data(), 1, formatted.size(), stderr);
+        std::fflush(stderr);
+    }
+
+    /// Legacy overload retained for sinks implemented before structured fields.
     virtual void Send(LogSeverity severity, const char* file, int line,
                       std::string_view message) noexcept {
-        LogRecordView record_view{severity, file, line, message};
-        std::string record = ActiveFormatter()->Format(record_view);
-        std::fwrite(record.data(), 1, record.size(), stderr);
-        std::fflush(stderr);
+        Send(LogRecordView{severity, file, line, message});
     }
 };
 
@@ -128,21 +130,19 @@ public:
         }
     }
 
-    void Send(LogSeverity severity, const char* file, int line,
-              std::string_view message) noexcept override {
+    void Send(const LogRecordView& record) noexcept override {
         std::lock_guard<std::mutex> lock(mu_);
         if (file_ == nullptr) return;
 
-        LogRecordView record_view{severity, file, line, message};
-        std::string record = ActiveFormatter()->Format(record_view);
-        if (max_bytes_ > 0 && current_size_ + record.size() > max_bytes_) {
+        std::string formatted = ActiveFormatter()->Format(record);
+        if (max_bytes_ > 0 && current_size_ + formatted.size() > max_bytes_) {
             Rotate();
             if (file_ == nullptr) return;
         }
 
-        std::fwrite(record.data(), 1, record.size(), file_);
+        std::fwrite(formatted.data(), 1, formatted.size(), file_);
         std::fflush(file_);
-        current_size_ += record.size();
+        current_size_ += formatted.size();
     }
 
 private:

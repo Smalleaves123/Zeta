@@ -64,6 +64,11 @@ When expanding the library:
 - Prefer `base` for foundational helpers that are used across modules rather
   than piling them into `utility`
 
+Logging belongs in `log`: application-facing records may attach structured
+fields, while formatting and sink selection remain replaceable at the module
+boundary. New observability integrations should consume `LogRecordView` rather
+than depend on formatter internals.
+
 The `base` module now owns the cross-platform compiler and platform detection
 surface, declaration attributes, optimization hints, and Clang thread-safety
 annotations. These headers should remain dependency-light so every other

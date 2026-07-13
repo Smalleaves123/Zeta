@@ -2,6 +2,17 @@
 
 All notable changes to Zeta are documented here.
 
+## [0.7.0] - 2026-07-13
+
+### Added
+
+- Structured `LogField` records and `LogMessage::WithField()` key/value
+  logging.
+- `JsonLogFormatter` for JSON-lines output with string escaping.
+- `ZETA_LOG_IF` for conditional logging without constructing disabled records.
+- Structured record support in the default and rotating file sinks while
+  preserving the legacy sink overload.
+
 ## [0.6.0] - 2026-07-13
 
 ### Added

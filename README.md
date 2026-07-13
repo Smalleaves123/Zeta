@@ -2,7 +2,7 @@
 
 Zeta is a header-only C++20 library inspired by [Abseil](https://github.com/abseil/abseil-cpp), focusing on **efficiency-critical primitives** that outperform or complement their standard-library counterparts. Every component is designed for real production use — not demos.
 
-Current release: `0.6.0`. See [CHANGELOG.md](./CHANGELOG.md), the
+Current release: `0.7.0`. See [CHANGELOG.md](./CHANGELOG.md), the
 [API stability policy](./docs/api-stability.md), and the
 [release workflow](./docs/release.md).
 
@@ -199,6 +199,21 @@ ZETA_ASSUME(value >= 0);
 
 The macros degrade to portable no-ops where a compiler-specific feature is not
 available, keeping public headers usable across supported toolchains.
+
+### `zeta/log/` — Structured Logging
+
+Streaming logs support runtime severity filtering, pluggable sinks, file
+rotation, structured key/value fields, and JSON-lines output.
+
+```cpp
+ZETA_LOG(INFO)
+    .WithField("request_id", request_id)
+    .WithField("component", "storage")
+    << "request completed";
+```
+
+Use `zeta::JsonLogFormatter` with a custom sink when logs must be consumed by
+an observability pipeline.
 
 ### 2. `zeta/crc/crc32c.h` — CRC32C Checksums
 

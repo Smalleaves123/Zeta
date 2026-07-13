@@ -1,4 +1,5 @@
 #include "zeta/log/log.h"
+#include "zeta/log/formatters.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -175,4 +176,44 @@ TEST_CASE("log: custom formatter is applied", "[log]") {
     REQUIRE(content.find("PREFIX|ERROR|formatted") != std::string::npos);
 
     std::filesystem::remove(path);
+}
+
+TEST_CASE("log: structured fields are formatted as JSON", "[log][structured]") {
+    auto path = std::filesystem::temp_directory_path() /
+        "zeta_log_json_formatter_test.log";
+    std::filesystem::remove(path);
+
+    {
+        zeta::JsonLogFormatter formatter;
+        zeta::log_internal::FileLogSink sink(path, 0, false);
+        zeta::log_internal::ScopedLogSink scoped_sink(&sink);
+        zeta::log_internal::ScopedLogFormatter scoped_formatter(&formatter);
+        zeta::LogMessage(zeta::log_internal::LogSeverity::INFO,
+                         "structured.cpp", 18)
+            .WithField("request_id", 42)
+            .WithField("detail", "quoted \"value\"\n")
+            << "request completed";
+    }
+
+    std::ifstream in(path);
+    std::string content((std::istreambuf_iterator<char>(in)),
+                        std::istreambuf_iterator<char>());
+    REQUIRE(content.find("\"severity\":\"INFO\"") != std::string::npos);
+    REQUIRE(content.find("\"request_id\":\"42\"") != std::string::npos);
+    REQUIRE(content.find("\"detail\":\"quoted \\\"value\\\"\\n\"") !=
+            std::string::npos);
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("log: conditional macro only emits when enabled", "[log]") {
+    TestSink sink;
+    zeta::log_internal::ScopedLogSink scoped_sink(&sink);
+
+    ZETA_LOG_IF(INFO, false) << "filtered";
+    REQUIRE(sink.call_count == 0);
+
+    ZETA_LOG_IF(INFO, true) << "kept";
+    REQUIRE(sink.call_count == 1);
+    REQUIRE(sink.last_message == "kept");
 }

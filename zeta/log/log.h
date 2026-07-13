@@ -16,10 +16,13 @@
 ///   ZETA_LOG(ERROR) << "connection refused: " << err;
 
 #include <sstream>
+#include <span>
 #include <string_view>
+#include <vector>
 
 #include "zeta/log/internal/severity.h"
 #include "zeta/log/internal/sink.h"
+#include "zeta/log/record.h"
 
 namespace zeta {
 
@@ -44,7 +47,12 @@ public:
             return;
         }
         std::string msg = stream_.str();
-        log_internal::ActiveSink()->Send(severity_, file_, line_, msg);
+        if (fields_.empty()) {
+            log_internal::ActiveSink()->Send(severity_, file_, line_, msg);
+        } else {
+            log_internal::ActiveSink()->Send(
+                LogRecordView{severity_, file_, line_, msg, fields_});
+        }
         if (severity_ == log_internal::LogSeverity::FATAL) {
             std::abort();
         }
@@ -57,11 +65,22 @@ public:
         return *this;
     }
 
+    /// Add an owned structured key/value field to this record.
+    template <typename T>
+    LogMessage& WithField(std::string_view key, const T& value) {
+        std::ostringstream field_stream;
+        field_stream << value;
+        fields_.push_back(
+            LogField{std::string(key), std::move(field_stream).str()});
+        return *this;
+    }
+
 private:
     log_internal::LogSeverity severity_;
     const char*               file_;
     int                       line_;
     std::ostringstream        stream_;
+    std::vector<LogField>     fields_;
 };
 
 } // namespace zeta
@@ -76,5 +95,11 @@ private:
     else                                                                  \
         ::zeta::LogMessage(::zeta::log_internal::LogSeverity::level,      \
                            __FILE__, __LINE__)
+
+#define ZETA_LOG_IF(level, condition)                                      \
+    if (!(condition))                                                       \
+        ;                                                                  \
+    else                                                                   \
+        ZETA_LOG(level)
 
 #endif // ZETA_LOG_LOG_H
