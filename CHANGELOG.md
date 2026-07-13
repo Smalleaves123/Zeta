@@ -2,6 +2,16 @@
 
 All notable changes to Zeta are documented here.
 
+## [0.5.0] - 2026-07-13
+
+### Added
+
+- ASCII character helpers and case conversion in `zeta/strings/ascii.h`.
+- Wildcard matching in `zeta/strings/match.h`.
+- C-style escaping and `StatusOr`-based unescaping in
+  `zeta/strings/escaping.h`.
+- Positional `$0` ... `$9` substitution in `zeta/strings/substitute.h`.
+
 ## [0.4.0] - 2026-07-13
 
 ### Added

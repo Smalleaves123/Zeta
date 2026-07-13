@@ -12,7 +12,8 @@
 ///   zeta::StripPrefix("--flag", "--");              // "flag"
 ///   zeta::ConsumePrefix(&text, "--");               // mutates text in place
 
-#include <cstring>
+#include "zeta/strings/ascii.h"
+
 #include <string>
 #include <string_view>
 
@@ -20,15 +21,11 @@ namespace zeta {
 
 namespace strings_internal {
 
-inline char ToLowerAscii(char c) noexcept {
-    return (c >= 'A' && c <= 'Z') ? static_cast<char>(c + ('a' - 'A')) : c;
-}
-
 inline bool EqualsIgnoreCaseImpl(std::string_view a,
                                  std::string_view b) noexcept {
     if (a.size() != b.size()) return false;
     for (size_t i = 0; i < a.size(); ++i) {
-        if (ToLowerAscii(a[i]) != ToLowerAscii(b[i])) return false;
+        if (AsciiToLower(a[i]) != AsciiToLower(b[i])) return false;
     }
     return true;
 }
@@ -76,8 +73,7 @@ inline bool EndsWithIgnoreCase(std::string_view text,
     if (text.size() < suffix.size()) return false;
     auto offset = text.size() - suffix.size();
     for (size_t i = 0; i < suffix.size(); ++i) {
-        if (strings_internal::ToLowerAscii(text[offset + i]) !=
-            strings_internal::ToLowerAscii(suffix[i])) {
+        if (AsciiToLower(text[offset + i]) != AsciiToLower(suffix[i])) {
             return false;
         }
     }
@@ -159,26 +155,6 @@ inline std::string_view StripAsciiWhitespace(
     std::string_view text) noexcept {
     return StripTrailingAsciiWhitespace(
         StripLeadingAsciiWhitespace(text));
-}
-
-// ── Case conversion ────────────────────────────────────────────────
-
-/// Returns a new `std::string` with all ASCII letters lowercased.
-inline std::string AsciiStrToLower(std::string_view text) {
-    std::string result(text);
-    for (char& c : result) {
-        if (c >= 'A' && c <= 'Z') c += ('a' - 'A');
-    }
-    return result;
-}
-
-/// Returns a new `std::string` with all ASCII letters uppercased.
-inline std::string AsciiStrToUpper(std::string_view text) {
-    std::string result(text);
-    for (char& c : result) {
-        if (c >= 'a' && c <= 'z') c -= ('a' - 'A');
-    }
-    return result;
 }
 
 // ── Replacement ────────────────────────────────────────────────────

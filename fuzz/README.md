@@ -66,6 +66,7 @@ cmake --build build-fuzz-engine
 - `strings_utils_fuzz`
 - `strings_join_fuzz`
 - `strings_format_fuzz`
+- `strings_escaping_fuzz`
 - `strings_str_cat_fuzz`
 - `strings_numbers_fuzz`
 - `hash_hash_fuzz`
