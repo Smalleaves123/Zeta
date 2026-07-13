@@ -1,7 +1,11 @@
 #include "zeta/base/as_const.h"
+#include "zeta/base/attributes.h"
+#include "zeta/base/config.h"
 #include "zeta/base/ignore.h"
 #include "zeta/base/in_place.h"
 #include "zeta/base/macros.h"
+#include "zeta/base/optimization.h"
+#include "zeta/base/thread_annotations.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -32,4 +36,24 @@ TEST_CASE("base: macros provide common portability helpers", "[base][macros]") {
     REQUIRE(!ZETA_UNLIKELY(value == 5 && false));
     ZETA_UNUSED(value);
     SUCCEED();
+}
+
+TEST_CASE("base: config exposes the active platform", "[base][config]") {
+    STATIC_REQUIRE(ZETA_CXX_STANDARD >= 202002L);
+    STATIC_REQUIRE(ZETA_COMPILER_CLANG || ZETA_COMPILER_GCC || ZETA_COMPILER_MSVC);
+    STATIC_REQUIRE(ZETA_OS_MACOS || ZETA_OS_LINUX || ZETA_OS_WINDOWS);
+}
+
+TEST_CASE("base: optimization and thread annotations compile portably",
+          "[base][annotations]") {
+    int value = 5;
+    ZETA_ASSUME(value == 5);
+    ZETA_PREFETCH(&value);
+    REQUIRE(value == 5);
+
+    struct Annotated {
+        int mu = 0;
+        int value ZETA_GUARDED_BY(mu);
+    } item{0, 7};
+    REQUIRE(item.value == 7);
 }

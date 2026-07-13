@@ -64,6 +64,11 @@ When expanding the library:
 - Prefer `base` for foundational helpers that are used across modules rather
   than piling them into `utility`
 
+The `base` module now owns the cross-platform compiler and platform detection
+surface, declaration attributes, optimization hints, and Clang thread-safety
+annotations. These headers should remain dependency-light so every other
+module can use them without introducing coupling.
+
 ## Near-Term Refactor Path
 
 1. Keep all existing include paths valid.

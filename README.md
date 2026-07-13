@@ -2,7 +2,7 @@
 
 Zeta is a header-only C++20 library inspired by [Abseil](https://github.com/abseil/abseil-cpp), focusing on **efficiency-critical primitives** that outperform or complement their standard-library counterparts. Every component is designed for real production use — not demos.
 
-Current release: `0.5.0`. See [CHANGELOG.md](./CHANGELOG.md), the
+Current release: `0.6.0`. See [CHANGELOG.md](./CHANGELOG.md), the
 [API stability policy](./docs/api-stability.md), and the
 [release workflow](./docs/release.md).
 
@@ -181,7 +181,26 @@ but new APIs should prefer landing in clearer domain modules like `base`,
 
 ## Module Reference
 
-### 1. `zeta/crc/crc32c.h` — CRC32C Checksums
+### `zeta/base/` — Portability and Annotations
+
+Portable compiler, platform, architecture, attribute, optimization, and
+thread-safety annotation helpers for library and application code.
+
+```cpp
+#include <zeta/base/attributes.h>
+#include <zeta/base/config.h>
+#include <zeta/base/optimization.h>
+
+ZETA_MUST_USE_RESULT int ComputeValue();
+
+int value = ComputeValue();
+ZETA_ASSUME(value >= 0);
+```
+
+The macros degrade to portable no-ops where a compiler-specific feature is not
+available, keeping public headers usable across supported toolchains.
+
+### 2. `zeta/crc/crc32c.h` — CRC32C Checksums
 
 Portable Castagnoli CRC32C with both one-shot and streaming APIs:
 

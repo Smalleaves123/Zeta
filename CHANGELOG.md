@@ -2,6 +2,15 @@
 
 All notable changes to Zeta are documented here.
 
+## [0.6.0] - 2026-07-13
+
+### Added
+
+- Portable compiler, platform, architecture, attribute, optimization, and
+  thread-safety annotation helpers in `zeta/base/`.
+- `ZETA_DEPRECATED`, `ZETA_MUST_USE_RESULT`, `ZETA_NO_UNIQUE_ADDRESS`,
+  `ZETA_ASSUME`, `ZETA_PREFETCH`, and `ZETA_RESTRICT` portability macros.
+
 ## [0.5.0] - 2026-07-13
 
 ### Added
