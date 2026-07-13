@@ -2,6 +2,10 @@
 
 Zeta is a header-only C++20 library inspired by [Abseil](https://github.com/abseil/abseil-cpp), focusing on **efficiency-critical primitives** that outperform or complement their standard-library counterparts. Every component is designed for real production use — not demos.
 
+Current release: `0.2.0`. See [CHANGELOG.md](./CHANGELOG.md), the
+[API stability policy](./docs/api-stability.md), and the
+[release workflow](./docs/release.md).
+
 ## Quick Start
 
 ```cpp
@@ -29,7 +33,7 @@ int main() {
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-ctest --test-dir build                    # 50 CTest targets
+ctest --test-dir build                    # 51 CTest targets
 ```
 
 ### Examples
@@ -97,6 +101,7 @@ Available module targets currently include:
 - `zeta::hash`
 - `zeta::log`
 - `zeta::memory`
+- `zeta::metrics`
 - `zeta::futures`
 - `zeta::meta`
 - `zeta::numeric`
@@ -131,6 +136,7 @@ cpp-/
 │   ├── container/                    # Hash and ordered containers
 │   │   └── internal/                 # Container internals, not API-stable
 │   ├── memory/                       # Views and callable adapters
+│   ├── metrics/                      # Counters, gauges, histograms, timers
 │   ├── futures/                      # Promise / future contract and chaining
 │   ├── types/                        # Optional / variant / any value types
 │   ├── synchronization/              # Mutex / once / notification
@@ -481,7 +487,32 @@ v.reserve(100);
 
 ---
 
-### 11. `zeta/futures/future.h` — Future / Promise Composition
+### 11. `zeta/metrics/metrics.h` — Counters, Gauges, and Histograms
+
+Metrics are local, thread-safe instruments. Zeta intentionally does not impose
+a global registry or wire format, so applications can export snapshots to
+Prometheus, OpenTelemetry, logs, or an internal backend.
+
+```cpp
+zeta::metrics::Counter requests;
+zeta::metrics::Gauge in_flight;
+zeta::metrics::Histogram latency({1'000'000, 10'000'000, 100'000'000});
+
+requests.Increment();
+in_flight.Add(1);
+{
+    zeta::metrics::ScopedTimer timer(latency);
+    in_flight.Add(-1);
+}
+auto snapshot = latency.Snapshot();
+```
+
+Histogram bounds are inclusive and the final bucket captures overflow samples.
+`ScopedTimer` records monotonic elapsed nanoseconds.
+
+---
+
+### 12. `zeta/futures/future.h` — Future / Promise Composition
 
 `Future<T>` is a single-consumer result chain. `Then()` runs only for successful
 values, while `ThenTry()` receives the complete `StatusOr<T>` and is useful for
@@ -512,7 +543,7 @@ executor must outlive the `SemiFuture` and all continuations scheduled on it.
 
 4. **Heterogeneous by default.** Any lookup/erase/count method templates on the key type, constrained with transparent hash/equal detection.
 
-5. **Production reliability.** 50 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
+5. **Production reliability.** 51 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
 
 ---
 

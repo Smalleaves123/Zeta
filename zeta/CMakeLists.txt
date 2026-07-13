@@ -45,6 +45,7 @@ add_subdirectory(types)
 add_subdirectory(strings)
 add_subdirectory(synchronization)
 add_subdirectory(time)
+add_subdirectory(metrics)
 add_subdirectory(utility)
 add_subdirectory(container)
 

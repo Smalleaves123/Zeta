@@ -24,6 +24,7 @@ monolithic infrastructure library.
 - `strings`
 - `time`
 - `memory`
+- `metrics`
 - `container`
 - `hash`
 - `random`

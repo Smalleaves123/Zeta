@@ -19,6 +19,7 @@ cmake --build build/examples
 ./build/examples/examples/zeta_example_log_random
 ./build/examples/examples/zeta_example_strings_pipeline
 ./build/examples/examples/zeta_example_memory_views
+./build/examples/examples/zeta_example_metrics
 ./build/examples/examples/zeta_example_ordered_index
 ./build/examples/examples/zeta_example_hashing
 ```
@@ -32,5 +33,6 @@ cmake --build build/examples
 - `log_random.cpp`: structured logging, `BitGen`, `Uniform`, `Bernoulli`
 - `strings_pipeline.cpp`: split, trim, normalize, join, formatted output
 - `memory_views.cpp`: `Span` plus `function_ref` for zero-allocation callbacks
+- `metrics.cpp`: counters, gauges, latency histograms, and scoped timers
 - `ordered_index.cpp`: ordered lookup with `btree_map` and UTC timestamps
 - `hashing.cpp`: payload hashing and range hashing over parsed fields

@@ -29,6 +29,9 @@ add_subdirectory(log)
 # ── meta/ ──────────────────────────────────────────────────────────
 add_subdirectory(meta)
 
+# ── metrics/ ───────────────────────────────────────────────────────
+add_subdirectory(metrics)
+
 # ── numeric/ ───────────────────────────────────────────────────────
 add_subdirectory(numeric)
 

@@ -1,5 +1,6 @@
 #include <zeta/base/as_const.h>
 #include <zeta/container/flat_hash_map.h>
+#include <zeta/metrics/metrics.h>
 #include <zeta/strings/str_cat.h>
 
 #include <string>
@@ -11,6 +12,10 @@ int main() {
     zeta::flat_hash_map<std::string, int> values;
     values["alpha"] = ref;
 
-    const std::string message = zeta::StrCat("alpha=", values.at("alpha"));
-    return message == "alpha=7" ? 0 : 1;
+    zeta::metrics::Counter requests;
+    requests.Increment();
+
+    const std::string message =
+        zeta::StrCat("alpha=", values.at("alpha"), ", requests=", requests.value());
+    return message == "alpha=7, requests=1" ? 0 : 1;
 }
