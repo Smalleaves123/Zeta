@@ -27,6 +27,7 @@ monolithic infrastructure library.
 - `memory`
 - `metrics`
 - `container`
+- `crc`
 - `hash`
 - `random`
 - `types`

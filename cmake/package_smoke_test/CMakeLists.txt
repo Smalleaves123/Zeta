@@ -7,6 +7,7 @@ add_executable(zeta_package_smoke_test main.cpp)
 target_link_libraries(zeta_package_smoke_test PRIVATE
     zeta::algorithm
     zeta::container
+    zeta::crc
     zeta::metrics
     zeta::strings
 )

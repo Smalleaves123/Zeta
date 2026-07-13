@@ -20,6 +20,9 @@ add_subdirectory(types)
 # ── cleanup/ ───────────────────────────────────────────────────────
 add_subdirectory(cleanup)
 
+# ── crc/ ───────────────────────────────────────────────────────────
+add_subdirectory(crc)
+
 # ── flags/ ──────────────────────────────────────────────────────────
 add_subdirectory(flags)
 

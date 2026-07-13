@@ -2,7 +2,7 @@
 
 Zeta is a header-only C++20 library inspired by [Abseil](https://github.com/abseil/abseil-cpp), focusing on **efficiency-critical primitives** that outperform or complement their standard-library counterparts. Every component is designed for real production use — not demos.
 
-Current release: `0.3.0`. See [CHANGELOG.md](./CHANGELOG.md), the
+Current release: `0.4.0`. See [CHANGELOG.md](./CHANGELOG.md), the
 [API stability policy](./docs/api-stability.md), and the
 [release workflow](./docs/release.md).
 
@@ -33,7 +33,7 @@ int main() {
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-ctest --test-dir build                    # 52 CTest targets
+ctest --test-dir build                    # 53 CTest targets
 ```
 
 ### Examples
@@ -65,6 +65,7 @@ cmake --build build-fuzz
 ./build-fuzz/fuzz/status_statusor_fuzz
 ./build-fuzz/fuzz/container_btree_map_fuzz
 ./build-fuzz/fuzz/container_node_hash_map_fuzz
+./build-fuzz/fuzz/crc32c_fuzz
 ./build-fuzz/fuzz/random_random_fuzz
 ```
 
@@ -98,6 +99,7 @@ Available module targets currently include:
 - `zeta::base`
 - `zeta::cleanup`
 - `zeta::container`
+- `zeta::crc`
 - `zeta::flags`
 - `zeta::hash`
 - `zeta::log`
@@ -131,6 +133,7 @@ cpp-/
 ├── zeta/                             # Library root (equivalent to absl/)
 │   ├── base/                         # Foundational helpers
 │   ├── algorithm/                    # Container-friendly standard algorithms
+│   ├── crc/                          # CRC32C checksums
 │   ├── status/                       # Error model and propagation helpers
 │   ├── strings/                      # Text building, splitting, formatting
 │   │   └── internal/                 # Non-public string implementation detail
@@ -177,7 +180,23 @@ but new APIs should prefer landing in clearer domain modules like `base`,
 
 ## Module Reference
 
-### 1. `zeta/memory/function_ref.h`
+### 1. `zeta/crc/crc32c.h` — CRC32C Checksums
+
+Portable Castagnoli CRC32C with both one-shot and streaming APIs:
+
+```cpp
+auto checksum = zeta::ComputeCrc32c("123456789");
+
+zeta::Crc32cAccumulator stream;
+stream.Update("1234");
+stream.Update("56789");
+auto same_checksum = stream.Finalize();
+```
+
+The API uses standard initial/final XOR semantics and is suitable for storage,
+cache, and network frame integrity checks.
+
+### 2. `zeta/memory/function_ref.h`
 
 A lightweight, non-owning, type-erased callable reference — analogous to `std::string_view` but for callables.
 
@@ -545,7 +564,7 @@ executor must outlive the `SemiFuture` and all continuations scheduled on it.
 
 4. **Heterogeneous by default.** Any lookup/erase/count method templates on the key type, constrained with transparent hash/equal detection.
 
-5. **Production reliability.** 52 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
+5. **Production reliability.** 53 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
 
 ---
 

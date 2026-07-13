@@ -75,6 +75,7 @@ cmake --build build-fuzz-engine
 - `container_inlined_vector_fuzz`
 - `container_btree_map_fuzz`
 - `container_node_hash_map_fuzz`
+- `crc32c_fuzz`
 - `random_random_fuzz`
 
 ## OSS-Fuzz direction

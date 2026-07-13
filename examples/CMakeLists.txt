@@ -22,6 +22,9 @@ target_link_libraries(zeta_example_memory_views PRIVATE zeta::memory)
 add_executable(zeta_example_metrics metrics.cpp)
 target_link_libraries(zeta_example_metrics PRIVATE zeta::metrics)
 
+add_executable(zeta_example_crc crc.cpp)
+target_link_libraries(zeta_example_crc PRIVATE zeta::crc)
+
 add_executable(zeta_example_ordered_index ordered_index.cpp)
 target_link_libraries(zeta_example_ordered_index PRIVATE zeta::container zeta::strings zeta::time)
 

@@ -2,6 +2,13 @@
 
 All notable changes to Zeta are documented here.
 
+## [0.4.0] - 2026-07-13
+
+### Added
+
+- `zeta::crc`: portable CRC32C computation, streaming extension, tests, and
+  fuzz coverage.
+
 ## [0.3.0] - 2026-07-13
 
 ### Added

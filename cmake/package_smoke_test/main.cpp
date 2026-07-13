@@ -1,6 +1,7 @@
 #include <zeta/algorithm/algorithm.h>
 #include <zeta/base/as_const.h>
 #include <zeta/container/flat_hash_map.h>
+#include <zeta/crc/crc32c.h>
 #include <zeta/metrics/metrics.h>
 #include <zeta/strings/str_cat.h>
 
@@ -18,6 +19,7 @@ int main() {
 
     const int keys[] = {7};
     if (!zeta::c_contains(keys, 7)) return 1;
+    if (zeta::ComputeCrc32c("alpha=7") == 0) return 1;
 
     const std::string message =
         zeta::StrCat("alpha=", values.at("alpha"), ", requests=", requests.value());
