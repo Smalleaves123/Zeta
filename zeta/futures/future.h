@@ -25,7 +25,6 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <thread>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -164,44 +163,52 @@ inline StatusOr<void> MakeInvalidFutureResult<void>() {
 }
 
 template <typename T>
-inline void SetWhenAllPromiseResult(
-    Promise<WhenAllResultT<T>>& promise,
-    std::vector<StatusOr<T>>&& results) {
-    if constexpr (std::is_void_v<T>) {
-        for (auto& result : results) {
-            if (!result.ok()) {
-                (void)promise.SetError(std::move(result).status());
-                return;
-            }
-        }
-        (void)promise.SetValue();
-    } else {
-        std::vector<T> values;
-        values.reserve(results.size());
-        for (auto& result : results) {
-            if (!result.ok()) {
-                (void)promise.SetError(std::move(result).status());
-                return;
-            }
-            values.push_back(std::move(result).value());
-        }
-        (void)promise.SetValue(std::move(values));
-    }
-}
+struct CollectAllSharedState {
+    std::mutex mutex;
+    std::size_t remaining = 0;
+    std::vector<std::optional<StatusOr<T>>> results;
+    std::shared_ptr<Promise<std::vector<StatusOr<T>>>> promise;
+};
 
 template <typename T>
 inline Future<std::vector<StatusOr<T>>> StartCollectAll(
     std::vector<Future<T>> futures) {
     auto [promise, future] = makePromiseContract<std::vector<StatusOr<T>>>();
 
-    std::thread([promise = std::move(promise), futures = std::move(futures)]() mutable {
-        std::vector<StatusOr<T>> results;
-        results.reserve(futures.size());
-        for (auto& future_item : futures) {
-            results.push_back(std::move(future_item).Get());
-        }
-        (void)promise.SetValue(std::move(results));
-    }).detach();
+    if (futures.empty()) {
+        (void)promise.SetValue({});
+        return std::move(future);
+    }
+
+    auto shared = std::make_shared<CollectAllSharedState<T>>();
+    shared->remaining = futures.size();
+    shared->results.resize(futures.size());
+    shared->promise =
+        std::make_shared<Promise<std::vector<StatusOr<T>>>>(std::move(promise));
+
+    for (std::size_t index = 0; index < futures.size(); ++index) {
+        (void)std::move(futures[index]).ThenTry(
+            [shared, index](StatusOr<T> result) {
+                std::optional<std::vector<StatusOr<T>>> ready_results;
+                {
+                    std::lock_guard<std::mutex> lock(shared->mutex);
+                    shared->results[index].emplace(std::move(result));
+                    --shared->remaining;
+                    if (shared->remaining == 0) {
+                        std::vector<StatusOr<T>> values;
+                        values.reserve(shared->results.size());
+                        for (auto& item : shared->results) {
+                            values.push_back(std::move(*item));
+                        }
+                        ready_results.emplace(std::move(values));
+                    }
+                }
+
+                if (ready_results.has_value()) {
+                    (void)shared->promise->SetValue(std::move(*ready_results));
+                }
+            });
+    }
 
     return std::move(future);
 }
@@ -209,18 +216,32 @@ inline Future<std::vector<StatusOr<T>>> StartCollectAll(
 template <typename T>
 inline Future<WhenAllResultT<T>> StartWhenAll(
     std::vector<Future<T>> futures) {
-    auto [promise, future] = makePromiseContract<WhenAllResultT<T>>();
-
-    std::thread([promise = std::move(promise), futures = std::move(futures)]() mutable {
-        std::vector<StatusOr<T>> results;
-        results.reserve(futures.size());
-        for (auto& future_item : futures) {
-            results.push_back(std::move(future_item).Get());
+    auto grouped = StartCollectAll<T>(std::move(futures));
+    return std::move(grouped).ThenTry([](StatusOr<std::vector<StatusOr<T>>> result) {
+        if (!result.ok()) {
+            return StatusOr<WhenAllResultT<T>>(std::move(result).status());
         }
-        SetWhenAllPromiseResult<T>(promise, std::move(results));
-    }).detach();
 
-    return std::move(future);
+        auto values = std::move(result).value();
+        if constexpr (std::is_void_v<T>) {
+            for (auto& item : values) {
+                if (!item.ok()) {
+                    return StatusOr<void>(std::move(item).status());
+                }
+            }
+            return StatusOr<void>();
+        } else {
+            std::vector<T> output;
+            output.reserve(values.size());
+            for (auto& item : values) {
+                if (!item.ok()) {
+                    return StatusOr<std::vector<T>>(std::move(item).status());
+                }
+                output.push_back(std::move(item).value());
+            }
+            return StatusOr<std::vector<T>>(std::move(output));
+        }
+    });
 }
 
 template <typename T>
@@ -255,27 +276,28 @@ inline Future<std::vector<IndexedResult<T>>> StartCollectN(
         std::make_shared<Promise<std::vector<IndexedResult<T>>>>(std::move(promise));
 
     for (std::size_t index = 0; index < futures.size(); ++index) {
-        std::thread([shared, index, future_item = std::move(futures[index])]() mutable {
-            IndexedResult<T> completion(index, std::move(future_item).Get());
-            std::optional<std::vector<IndexedResult<T>>> ready_results;
+        (void)std::move(futures[index]).ThenTry(
+            [shared, index](StatusOr<T> result) {
+                IndexedResult<T> completion(index, std::move(result));
+                std::optional<std::vector<IndexedResult<T>>> ready_results;
 
-            {
-                std::lock_guard<std::mutex> lock(shared->mutex);
-                if (shared->done) {
-                    return;
+                {
+                    std::lock_guard<std::mutex> lock(shared->mutex);
+                    if (shared->done) {
+                        return;
+                    }
+
+                    shared->results.push_back(std::move(completion));
+                    if (shared->results.size() == shared->target) {
+                        shared->done = true;
+                        ready_results.emplace(std::move(shared->results));
+                    }
                 }
 
-                shared->results.push_back(std::move(completion));
-                if (shared->results.size() == shared->target) {
-                    shared->done = true;
-                    ready_results.emplace(std::move(shared->results));
+                if (ready_results.has_value()) {
+                    (void)shared->promise->SetValue(std::move(*ready_results));
                 }
-            }
-
-            if (ready_results.has_value()) {
-                (void)shared->promise->SetValue(std::move(*ready_results));
-            }
-        }).detach();
+            });
     }
 
     return std::move(future);
@@ -292,20 +314,20 @@ inline Future<IndexedResult<T>> StartCollectAny(
     }
 
     auto grouped = StartCollectN<T>(std::move(futures), 1);
-    std::thread([promise = std::move(promise), grouped = std::move(grouped)]() mutable {
-        auto results = std::move(grouped).Get();
-        if (!results.ok()) {
-            (void)promise.SetError(std::move(results).status());
-            return;
-        }
+    (void)std::move(grouped).ThenTry(
+        [promise = std::move(promise)](StatusOr<std::vector<IndexedResult<T>>> results) mutable {
+            if (!results.ok()) {
+                (void)promise.SetError(std::move(results).status());
+                return;
+            }
 
-        if (results.value().empty()) {
-            (void)promise.SetError(InternalError("collectAny produced no results"));
-            return;
-        }
+            if (results.value().empty()) {
+                (void)promise.SetError(InternalError("collectAny produced no results"));
+                return;
+            }
 
-        (void)promise.SetValue(std::move(results.value().front()));
-    }).detach();
+            (void)promise.SetValue(std::move(results.value().front()));
+        });
 
     return std::move(future);
 }
@@ -574,6 +596,75 @@ public:
         return future;
     }
 
+    /// Attach a continuation that receives the complete success/error result.
+    /// Unlike Then(), the callback is also invoked when the source contains an
+    /// error. This is useful for fan-in combinators that must preserve errors.
+    template <typename F>
+    [[nodiscard]] auto ThenTry(F&& f) && {
+        using StoredF = std::decay_t<F>;
+        using RawResult = std::remove_cvref_t<
+            std::invoke_result_t<StoredF&, StatusOr<T>>>;
+        using Out = detail::UnwrapStatusOrT<RawResult>;
+
+        auto next = makePromiseContract<Out>();
+        Promise<Out> promise = std::move(next.first);
+        Future<Out> future = std::move(next.second);
+
+        if (state_ == nullptr) {
+            (void)promise.SetError(InternalError("future is not valid"));
+            return future;
+        }
+
+        struct Continuation final : detail::FutureState<T>::ContinuationBase {
+            Continuation(StoredF fn, Promise<Out> next_promise)
+                : fn_(std::move(fn)), next_promise_(std::move(next_promise)) {}
+
+            Executor* executor() const noexcept override { return nullptr; }
+
+            void Run(StatusOr<T> source) override {
+                if constexpr (detail::IsStatusOrV<RawResult>) {
+                    (void)next_promise_.SetResult(
+                        std::invoke(fn_, std::move(source)));
+                } else if constexpr (std::is_void_v<RawResult>) {
+                    std::invoke(fn_, std::move(source));
+                    (void)next_promise_.SetValue();
+                } else {
+                    (void)next_promise_.SetValue(
+                        std::invoke(fn_, std::move(source)));
+                }
+            }
+
+            StoredF fn_;
+            Promise<Out> next_promise_;
+        };
+
+        auto continuation = std::make_unique<Continuation>(
+            std::forward<F>(f), std::move(promise));
+        std::optional<StatusOr<T>> ready_result;
+
+        {
+            std::lock_guard<std::mutex> lock(state_->mutex);
+            if (state_->consumed) {
+                auto failed = makePromiseContract<Out>();
+                (void)failed.first.SetError(
+                    FailedPreconditionError("future already consumed"));
+                return std::move(failed.second);
+            }
+
+            state_->consumed = true;
+            if (state_->ready) {
+                ready_result.emplace(std::move(*state_->result));
+                state_->result.reset();
+            } else {
+                state_->continuation = std::move(continuation);
+                return future;
+            }
+        }
+
+        continuation->Run(std::move(*ready_result));
+        return future;
+    }
+
     [[nodiscard]] SemiFuture<T> Via(Executor& executor) &&;
 
 private:
@@ -742,6 +833,76 @@ public:
 
             state_->consumed = true;
 
+            if (state_->ready) {
+                ready_result.emplace(std::move(*state_->result));
+                state_->result.reset();
+            } else {
+                state_->continuation = std::move(continuation);
+                return future;
+            }
+        }
+
+        detail::DispatchContinuation<T>(std::move(continuation), std::move(*ready_result));
+        return future;
+    }
+
+    /// Attach a continuation that receives the complete success/error result.
+    template <typename F>
+    [[nodiscard]] auto ThenTry(F&& f) && {
+        using StoredF = std::decay_t<F>;
+        using RawResult = std::remove_cvref_t<
+            std::invoke_result_t<StoredF&, StatusOr<T>>>;
+        using Out = detail::UnwrapStatusOrT<RawResult>;
+
+        auto next = makePromiseContract<Out>();
+        Promise<Out> promise = std::move(next.first);
+        SemiFuture<Out> future(std::move(next.second), executor_);
+
+        if (state_ == nullptr) {
+            (void)promise.SetError(InternalError("future is not valid"));
+            return future;
+        }
+
+        struct Continuation final : detail::FutureState<T>::ContinuationBase {
+            Continuation(StoredF fn, Promise<Out> next_promise, Executor* executor)
+                : fn_(std::move(fn))
+                , next_promise_(std::move(next_promise))
+                , executor_(executor) {}
+
+            Executor* executor() const noexcept override { return executor_; }
+
+            void Run(StatusOr<T> source) override {
+                if constexpr (detail::IsStatusOrV<RawResult>) {
+                    (void)next_promise_.SetResult(
+                        std::invoke(fn_, std::move(source)));
+                } else if constexpr (std::is_void_v<RawResult>) {
+                    std::invoke(fn_, std::move(source));
+                    (void)next_promise_.SetValue();
+                } else {
+                    (void)next_promise_.SetValue(
+                        std::invoke(fn_, std::move(source)));
+                }
+            }
+
+            StoredF fn_;
+            Promise<Out> next_promise_;
+            Executor* executor_ = nullptr;
+        };
+
+        auto continuation = std::make_unique<Continuation>(
+            std::forward<F>(f), std::move(promise), executor_);
+        std::optional<StatusOr<T>> ready_result;
+
+        {
+            std::lock_guard<std::mutex> lock(state_->mutex);
+            if (state_->consumed) {
+                auto failed = makePromiseContract<Out>();
+                (void)failed.first.SetError(
+                    FailedPreconditionError("future already consumed"));
+                return SemiFuture<Out>(std::move(failed.second), executor_);
+            }
+
+            state_->consumed = true;
             if (state_->ready) {
                 ready_result.emplace(std::move(*state_->result));
                 state_->result.reset();

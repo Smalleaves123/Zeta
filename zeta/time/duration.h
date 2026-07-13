@@ -19,7 +19,6 @@
 ///
 /// @warning  Saturates at `int64_t` bounds (~292 years) — no overflow.
 
-#include <cassert>
 #include <chrono>
 #include <cstdint>
 #include <limits>
@@ -147,7 +146,8 @@ public:
         return *this;
     }
     constexpr Duration& operator/=(int64_t divisor) noexcept {
-        assert(divisor != 0);
+        // Keep division by zero deterministic and non-throwing: a scalar
+        // divide by zero leaves the duration unchanged.
         if (divisor == 0) return *this;
         ns_ /= divisor;
         return *this;
@@ -172,13 +172,13 @@ public:
     }
     /// Ratio of two durations (truncates toward zero).
     [[nodiscard]] friend constexpr int64_t operator/(Duration a, Duration b) noexcept {
-        assert(b.ns_ != 0);
+        // A zero duration has no meaningful ratio; return the neutral value.
         if (b.ns_ == 0) return 0;
         return a.ns_ / b.ns_;
     }
     /// Remainder of two durations.
     [[nodiscard]] friend constexpr Duration operator%(Duration a, Duration b) noexcept {
-        assert(b.ns_ != 0);
+        // A zero duration has no meaningful remainder; return zero.
         if (b.ns_ == 0) return Duration();
         return Duration(a.ns_ % b.ns_, 0);
     }

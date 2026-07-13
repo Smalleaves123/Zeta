@@ -25,6 +25,8 @@ monolithic infrastructure library.
 - `container`
 - `hash`
 - `random`
+- `types`
+- `futures`
 
 ### Low-Level Public Modules
 

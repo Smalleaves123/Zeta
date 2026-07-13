@@ -1,7 +1,7 @@
 # ── Test helpers ─────────────────────────────────────────────────
-function(zeta_test name)
+function(zeta_test name module)
     add_executable(${name} ${name}.cpp)
-    target_link_libraries(${name} PRIVATE zeta Catch2::Catch2WithMain)
+    target_link_libraries(${name} PRIVATE ${module} Catch2::Catch2WithMain)
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
 

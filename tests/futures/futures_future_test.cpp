@@ -111,6 +111,26 @@ TEST_CASE("Future: then propagates errors", "[futures][then]") {
     REQUIRE(result.status().code() == zeta::StatusCode::kUnavailable);
 }
 
+TEST_CASE("Future: ThenTry observes errors", "[futures][then_try]") {
+    auto [promise, future] = zeta::makePromiseContract<int>();
+    std::atomic<bool> observed{false};
+
+    auto next = std::move(future).ThenTry([&](zeta::StatusOr<int> result) {
+        if (!result.ok()) {
+            observed.store(true, std::memory_order_relaxed);
+            return zeta::StatusOr<std::string>(std::move(result).status());
+        }
+        return zeta::StatusOr<std::string>(std::to_string(result.value()));
+    });
+
+    REQUIRE(promise.SetError(zeta::UnavailableError("downstream")).ok());
+
+    auto result = std::move(next).Get();
+    REQUIRE(!result.ok());
+    REQUIRE(observed.load(std::memory_order_relaxed));
+    REQUIRE(result.status().code() == zeta::StatusCode::kUnavailable);
+}
+
 TEST_CASE("Future: then supports void continuations", "[futures][then]") {
     auto [promise, future] = zeta::makePromiseContract<void>();
 

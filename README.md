@@ -29,7 +29,7 @@ int main() {
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-ctest --test-dir build                    # 7 test suites, 100% pass
+ctest --test-dir build                    # 50 CTest targets
 ```
 
 ### Examples
@@ -60,6 +60,7 @@ cmake --build build-fuzz
 ./build-fuzz/fuzz/status_status_fuzz
 ./build-fuzz/fuzz/status_statusor_fuzz
 ./build-fuzz/fuzz/container_btree_map_fuzz
+./build-fuzz/fuzz/container_node_hash_map_fuzz
 ./build-fuzz/fuzz/random_random_fuzz
 ```
 
@@ -104,6 +105,7 @@ Available module targets currently include:
 - `zeta::strings`
 - `zeta::synchronization`
 - `zeta::time`
+- `zeta::types`
 - `zeta::utility`
 
 **SIMD backends** are auto-detected:
@@ -130,6 +132,7 @@ cpp-/
 │   │   └── internal/                 # Container internals, not API-stable
 │   ├── memory/                       # Views and callable adapters
 │   ├── futures/                      # Promise / future contract and chaining
+│   ├── types/                        # Optional / variant / any value types
 │   ├── synchronization/              # Mutex / once / notification
 │   ├── hash/                         # Hash framework
 │   ├── random/                       # PRNG and distributions
@@ -488,7 +491,7 @@ v.reserve(100);
 
 4. **Heterogeneous by default.** Any lookup/erase/count method templates on the key type, constrained with transparent hash/equal detection.
 
-5. **Production reliability.** 7 test suites, 100% pass rate. Move-only types supported. Exception-safe insert paths. Proper iterator invalidation semantics.
+5. **Production reliability.** 50 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
 
 ---
 

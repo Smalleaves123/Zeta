@@ -1,1 +1,1 @@
-zeta_test(base_test)
+zeta_test(base_test zeta::base)

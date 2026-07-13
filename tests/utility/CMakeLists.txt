@@ -1,1 +1,1 @@
-zeta_test(utility_test)
+zeta_test(utility_test zeta::utility)
