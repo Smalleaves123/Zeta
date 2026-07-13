@@ -19,6 +19,7 @@ monolithic infrastructure library.
 
 ### Stable Public Modules
 
+- `algorithm`
 - `base`
 - `status`
 - `strings`

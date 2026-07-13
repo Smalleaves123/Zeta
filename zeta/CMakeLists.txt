@@ -29,6 +29,7 @@ function(zeta_module name)
 endfunction()
 
 # ── Per-module CMake (Abseil-style interface targets) ─────────────
+add_subdirectory(algorithm)
 add_subdirectory(bits)
 add_subdirectory(base)
 add_subdirectory(cleanup)

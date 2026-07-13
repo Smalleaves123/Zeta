@@ -8,6 +8,9 @@ endfunction()
 # ── bits/ ─────────────────────────────────────────────────────────
 add_subdirectory(bits)
 
+# ── algorithm/ ─────────────────────────────────────────────────────
+add_subdirectory(algorithm)
+
 # ── base/ ──────────────────────────────────────────────────────────
 add_subdirectory(base)
 

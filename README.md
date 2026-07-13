@@ -2,7 +2,7 @@
 
 Zeta is a header-only C++20 library inspired by [Abseil](https://github.com/abseil/abseil-cpp), focusing on **efficiency-critical primitives** that outperform or complement their standard-library counterparts. Every component is designed for real production use — not demos.
 
-Current release: `0.2.0`. See [CHANGELOG.md](./CHANGELOG.md), the
+Current release: `0.3.0`. See [CHANGELOG.md](./CHANGELOG.md), the
 [API stability policy](./docs/api-stability.md), and the
 [release workflow](./docs/release.md).
 
@@ -33,7 +33,7 @@ int main() {
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-ctest --test-dir build                    # 51 CTest targets
+ctest --test-dir build                    # 52 CTest targets
 ```
 
 ### Examples
@@ -94,6 +94,7 @@ target_link_libraries(my_app PRIVATE
 Available module targets currently include:
 
 - `zeta::bits`
+- `zeta::algorithm`
 - `zeta::base`
 - `zeta::cleanup`
 - `zeta::container`
@@ -129,6 +130,7 @@ cpp-/
 ├── CMakeLists.txt                    # Top-level build
 ├── zeta/                             # Library root (equivalent to absl/)
 │   ├── base/                         # Foundational helpers
+│   ├── algorithm/                    # Container-friendly standard algorithms
 │   ├── status/                       # Error model and propagation helpers
 │   ├── strings/                      # Text building, splitting, formatting
 │   │   └── internal/                 # Non-public string implementation detail
@@ -543,7 +545,7 @@ executor must outlive the `SemiFuture` and all continuations scheduled on it.
 
 4. **Heterogeneous by default.** Any lookup/erase/count method templates on the key type, constrained with transparent hash/equal detection.
 
-5. **Production reliability.** 51 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
+5. **Production reliability.** 52 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
 
 ---
 

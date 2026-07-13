@@ -2,6 +2,14 @@
 
 All notable changes to Zeta are documented here.
 
+## [0.3.0] - 2026-07-13
+
+### Added
+
+- `zeta::algorithm`: container-friendly wrappers for common standard
+  algorithms, including search, predicates, sorting, transforms, and numeric
+  accumulation.
+
 ## [0.2.0] - 2026-07-13
 
 ### Added
