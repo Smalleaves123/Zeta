@@ -25,6 +25,7 @@ monolithic infrastructure library.
 - `strings`
 - `time`
 - `memory`
+- `functional`
 - `metrics`
 - `container`
 - `crc`
@@ -57,6 +58,8 @@ When expanding the library:
 - Prefer `time` over adding time helpers to `utility`
 - Prefer `strings` over adding text helpers to `utility`
 - Prefer `memory` or `container` over adding storage helpers to `utility`
+- Prefer `functional` for callback composition and visitor helpers rather than
+  adding unrelated adapters to `memory`
 - Prefer `internal/` over polluting top-level public module directories with
   implementation details
 - Prefer adding request-flow time helpers to `time` rather than scattering

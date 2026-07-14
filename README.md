@@ -2,7 +2,7 @@
 
 Zeta is a header-only C++20 library inspired by [Abseil](https://github.com/abseil/abseil-cpp), focusing on **efficiency-critical primitives** that outperform or complement their standard-library counterparts. Every component is designed for real production use — not demos.
 
-Current release: `0.7.0`. See [CHANGELOG.md](./CHANGELOG.md), the
+Current release: `0.8.0`. See [CHANGELOG.md](./CHANGELOG.md), the
 [API stability policy](./docs/api-stability.md), and the
 [release workflow](./docs/release.md).
 
@@ -33,7 +33,7 @@ int main() {
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-ctest --test-dir build                    # 54 CTest targets
+ctest --test-dir build                    # 55 CTest targets
 ```
 
 ### Examples
@@ -107,6 +107,7 @@ Available module targets currently include:
 - `zeta::memory`
 - `zeta::metrics`
 - `zeta::futures`
+- `zeta::functional`
 - `zeta::meta`
 - `zeta::numeric`
 - `zeta::random`
@@ -142,6 +143,7 @@ cpp-/
 │   ├── container/                    # Hash and ordered containers
 │   │   └── internal/                 # Container internals, not API-stable
 │   ├── memory/                       # Views and callable adapters
+│   ├── functional/                   # Callable composition helpers
 │   ├── metrics/                      # Counters, gauges, histograms, timers
 │   ├── futures/                      # Promise / future contract and chaining
 │   ├── types/                        # Optional / variant / any value types
@@ -230,6 +232,22 @@ auto same_checksum = stream.Finalize();
 
 The API uses standard initial/final XOR semantics and is suitable for storage,
 cache, and network frame integrity checks.
+
+### `zeta/functional/` — Callable Composition
+
+Small, allocation-free helpers for composing callbacks and visitors:
+`Overload`, `compose`, and `pipe`.
+
+```cpp
+const auto normalize = zeta::compose(
+    [](std::string value) { return value + "!"; },
+    [](int value) { return std::to_string(value); });
+
+const auto text = normalize(42);  // "42!"
+```
+
+Use `zeta::Overload{...}` with `std::visit` to keep variant dispatch local and
+readable.
 
 ### 2. `zeta/memory/function_ref.h`
 
@@ -599,7 +617,7 @@ executor must outlive the `SemiFuture` and all continuations scheduled on it.
 
 4. **Heterogeneous by default.** Any lookup/erase/count method templates on the key type, constrained with transparent hash/equal detection.
 
-5. **Production reliability.** 54 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
+5. **Production reliability.** 55 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
 
 ---
 

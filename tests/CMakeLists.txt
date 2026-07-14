@@ -65,3 +65,6 @@ add_subdirectory(container)
 # ── random/ ──────────────────────────────────────────────────────
 add_subdirectory(random)
 add_subdirectory(futures)
+
+# ── functional/ ───────────────────────────────────────────────────
+add_subdirectory(functional)

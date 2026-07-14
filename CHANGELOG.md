@@ -2,6 +2,14 @@
 
 All notable changes to Zeta are documented here.
 
+## [0.8.0] - 2026-07-14
+
+### Added
+
+- New `zeta::functional` module with `Overload`, right-to-left `compose`,
+  and left-to-right `pipe` helpers.
+- Move-only callable composition coverage using `AnyInvocable`.
+
 ## [0.7.0] - 2026-07-13
 
 ### Added

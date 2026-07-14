@@ -2,6 +2,7 @@
 #include <zeta/base/as_const.h>
 #include <zeta/container/flat_hash_map.h>
 #include <zeta/crc/crc32c.h>
+#include <zeta/functional/pipe.h>
 #include <zeta/log/formatters.h>
 #include <zeta/metrics/metrics.h>
 #include <zeta/strings/str_cat.h>
@@ -26,6 +27,7 @@ int main() {
     const std::string message =
         zeta::StrCat("alpha=", values.at("alpha"), ", requests=", requests.value());
     if (message != "alpha=7, requests=1") return 1;
+    if (zeta::pipe(1, [](int number) { return number + 1; }) != 2) return 1;
 
     std::array<zeta::LogField, 1> fields{{{"request_id", "42"}}};
     zeta::LogRecordView record{
