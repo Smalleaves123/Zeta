@@ -1,3 +1,4 @@
+# futures/ module — asynchronous value and cancellation composition
 zeta_module(futures
     DEPS zeta_status
     HEADERS

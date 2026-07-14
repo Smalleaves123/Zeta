@@ -1,4 +1,4 @@
-# time/ module — Duration / Clock abstractions
+# time/ module — Civil time, clocks, timestamps, and durations
 zeta_module(time HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/backoff.h
     ${CMAKE_CURRENT_SOURCE_DIR}/duration.h

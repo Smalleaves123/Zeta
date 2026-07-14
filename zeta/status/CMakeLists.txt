@@ -1,4 +1,4 @@
-# status/ module — Status, StatusOr
+# status/ module — Status, StatusOr, Result, and propagation helpers
 zeta_module(status HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/internal/message_join.h
     ${CMAKE_CURRENT_SOURCE_DIR}/status.h

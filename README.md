@@ -167,6 +167,8 @@ cpp-/
 
 Tests are intentionally written to read like usage notes for the public API.
 See [tests/README.md](./tests/README.md) for the conventions we follow.
+The complete dependency and ownership map is in
+[docs/module-map.md](./docs/module-map.md).
 
 ### Structure Direction
 

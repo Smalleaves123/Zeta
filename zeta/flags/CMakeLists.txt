@@ -1,3 +1,4 @@
+# flags/ module — typed startup configuration and help generation
 zeta_module(flags
     DEPS zeta_strings
     HEADERS

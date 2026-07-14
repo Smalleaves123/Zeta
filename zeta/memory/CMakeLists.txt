@@ -1,4 +1,4 @@
-# memory/ module — function_ref
+# memory/ module — non-owning views and owning callable adapters
 zeta_module(memory HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/any_invocable.h
     ${CMAKE_CURRENT_SOURCE_DIR}/bind_front.h

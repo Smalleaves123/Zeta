@@ -1,3 +1,4 @@
+# log/ module — structured records, formatters, and sinks
 zeta_module(log
     DEPS zeta_time
     HEADERS

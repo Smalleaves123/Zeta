@@ -23,6 +23,10 @@ Implementation detail belongs in `zeta/<module>/internal/` and usually should
 not be used from normal tests. When an internal helper needs coverage, keep that
 test focused and clearly labeled as internal behavior.
 
+Each module's tests are registered through the shared
+`cmake/ZetaTest.cmake` helper. Keep each directory-level `CMakeLists.txt`
+focused on mapping test executables to their public module target.
+
 ## Examples
 
 - `tests/base/base_test.cpp` shows the foundational helpers that should stay

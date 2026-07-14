@@ -3,6 +3,9 @@
 Zeta is converging on an Abseil-style project shape rather than a Folly-style
 monolithic infrastructure library.
 
+The authoritative module dependency and ownership map is maintained in
+[`docs/module-map.md`](module-map.md).
+
 ## Principles
 
 - Public APIs live in `zeta/<module>/...`.

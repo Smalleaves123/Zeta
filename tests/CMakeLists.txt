@@ -1,73 +1,27 @@
-# ── Test helpers ─────────────────────────────────────────────────
-function(zeta_test name module)
-    add_executable(${name} ${name}.cpp)
-    target_link_libraries(${name} PRIVATE ${module} Catch2::Catch2WithMain)
-    add_test(NAME ${name} COMMAND ${name})
-endfunction()
+include(${PROJECT_SOURCE_DIR}/cmake/ZetaTest.cmake)
 
-# ── bits/ ─────────────────────────────────────────────────────────
-add_subdirectory(bits)
-
-# ── algorithm/ ─────────────────────────────────────────────────────
+# Keep test registration alphabetical so CTest output is stable and easy to
+# scan. Each directory owns the tests for exactly one public module.
 add_subdirectory(algorithm)
-
-# ── base/ ──────────────────────────────────────────────────────────
 add_subdirectory(base)
-
-# ── debugging/ ────────────────────────────────────────────────────
-add_subdirectory(debugging)
-
-# ── types/ ─────────────────────────────────────────────────────────
-add_subdirectory(types)
-
-# ── cleanup/ ───────────────────────────────────────────────────────
+add_subdirectory(bits)
 add_subdirectory(cleanup)
-
-# ── crc/ ───────────────────────────────────────────────────────────
-add_subdirectory(crc)
-
-# ── flags/ ──────────────────────────────────────────────────────────
-add_subdirectory(flags)
-
-# ── hash/ ──────────────────────────────────────────────────────────
-add_subdirectory(hash)
-
-# ── log/ ────────────────────────────────────────────────────────────
-add_subdirectory(log)
-
-# ── meta/ ──────────────────────────────────────────────────────────
-add_subdirectory(meta)
-
-# ── metrics/ ───────────────────────────────────────────────────────
-add_subdirectory(metrics)
-
-# ── numeric/ ───────────────────────────────────────────────────────
-add_subdirectory(numeric)
-
-# ── synchronization/ ───────────────────────────────────────────────
-add_subdirectory(synchronization)
-
-# ── time/ ──────────────────────────────────────────────────────────
-add_subdirectory(time)
-
-# ── utility/ ───────────────────────────────────────────────────────
-add_subdirectory(utility)
-
-# ── status/ ──────────────────────────────────────────────────────
-add_subdirectory(status)
-
-# ── memory/ ──────────────────────────────────────────────────────
-add_subdirectory(memory)
-
-# ── strings/ ─────────────────────────────────────────────────────
-add_subdirectory(strings)
-
-# ── container/ ───────────────────────────────────────────────────
 add_subdirectory(container)
-
-# ── random/ ──────────────────────────────────────────────────────
-add_subdirectory(random)
-add_subdirectory(futures)
-
-# ── functional/ ───────────────────────────────────────────────────
+add_subdirectory(crc)
+add_subdirectory(debugging)
+add_subdirectory(flags)
 add_subdirectory(functional)
+add_subdirectory(futures)
+add_subdirectory(hash)
+add_subdirectory(log)
+add_subdirectory(memory)
+add_subdirectory(meta)
+add_subdirectory(metrics)
+add_subdirectory(numeric)
+add_subdirectory(random)
+add_subdirectory(status)
+add_subdirectory(strings)
+add_subdirectory(synchronization)
+add_subdirectory(time)
+add_subdirectory(types)
+add_subdirectory(utility)
