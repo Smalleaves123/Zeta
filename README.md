@@ -2,7 +2,7 @@
 
 Zeta is a header-only C++20 library inspired by [Abseil](https://github.com/abseil/abseil-cpp), focusing on **efficiency-critical primitives** that outperform or complement their standard-library counterparts. Every component is designed for real production use — not demos.
 
-Current release: `0.9.0`. See [CHANGELOG.md](./CHANGELOG.md), the
+Current release: `0.10.0`. See [CHANGELOG.md](./CHANGELOG.md), the
 [API stability policy](./docs/api-stability.md), and the
 [release workflow](./docs/release.md).
 
@@ -33,7 +33,7 @@ int main() {
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-ctest --test-dir build                    # 55 CTest targets
+ctest --test-dir build                    # 56 CTest targets
 ```
 
 ### Examples
@@ -98,6 +98,7 @@ Available module targets currently include:
 - `zeta::bits`
 - `zeta::algorithm`
 - `zeta::base`
+- `zeta::debugging`
 - `zeta::cleanup`
 - `zeta::container`
 - `zeta::crc`
@@ -134,6 +135,7 @@ cpp-/
 ├── CMakeLists.txt                    # Top-level build
 ├── zeta/                             # Library root (equivalent to absl/)
 │   ├── base/                         # Foundational helpers
+│   ├── debugging/                    # Assertions, stack traces, crash handling
 │   ├── algorithm/                    # Container-friendly standard algorithms
 │   ├── crc/                          # CRC32C checksums
 │   ├── strings/                      # Text building, parsing, matching, escaping
@@ -201,6 +203,24 @@ ZETA_ASSUME(value >= 0);
 
 The macros degrade to portable no-ops where a compiler-specific feature is not
 available, keeping public headers usable across supported toolchains.
+
+### `zeta/debugging/` — Assertions and Failure Diagnostics
+
+The debugging module provides debug-only assertions, always-on checks, stack
+capture, best-effort symbolization, and fatal-signal handlers. Stack and
+symbol APIs degrade safely on unsupported platforms.
+
+```cpp
+#include <zeta/debugging/assert.h>
+#include <zeta/debugging/stack_trace.h>
+
+ZETA_CHECK(config != nullptr);
+const auto trace = zeta::CaptureStackTrace();
+std::cerr << trace.ToString();
+```
+
+Call `zeta::InstallFailureSignalHandler()` early in process startup when crash
+diagnostics should be written to stderr.
 
 ### `zeta/log/` — Structured Logging
 
@@ -633,7 +653,7 @@ executor must outlive the `SemiFuture` and all continuations scheduled on it.
 
 4. **Heterogeneous by default.** Any lookup/erase/count method templates on the key type, constrained with transparent hash/equal detection.
 
-5. **Production reliability.** 55 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
+5. **Production reliability.** 56 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
 
 ---
 

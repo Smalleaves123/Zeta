@@ -2,6 +2,8 @@
 #include <zeta/base/as_const.h>
 #include <zeta/container/flat_hash_map.h>
 #include <zeta/crc/crc32c.h>
+#include <zeta/debugging/assert.h>
+#include <zeta/debugging/stack_trace.h>
 #include <zeta/functional/pipe.h>
 #include <zeta/log/formatters.h>
 #include <zeta/metrics/metrics.h>
@@ -29,6 +31,8 @@ int main() {
         zeta::StrCat("alpha=", values.at("alpha"), ", requests=", requests.value());
     if (message != "alpha=7, requests=1") return 1;
     if (zeta::pipe(1, [](int number) { return number + 1; }) != 2) return 1;
+    ZETA_CHECK(value == 7);
+    if (zeta::Symbolize(nullptr) != "0x0") return 1;
 
     zeta::BitGen random(20260714);
     const auto first_random = random();

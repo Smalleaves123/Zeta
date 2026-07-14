@@ -14,6 +14,9 @@ add_subdirectory(algorithm)
 # ── base/ ──────────────────────────────────────────────────────────
 add_subdirectory(base)
 
+# ── debugging/ ────────────────────────────────────────────────────
+add_subdirectory(debugging)
+
 # ── types/ ─────────────────────────────────────────────────────────
 add_subdirectory(types)
 

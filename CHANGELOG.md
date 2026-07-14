@@ -2,6 +2,15 @@
 
 All notable changes to Zeta are documented here.
 
+## [0.10.0] - 2026-07-14
+
+### Added
+
+- New `zeta::debugging` module with `ZETA_ASSERT`, `ZETA_CHECK`, and
+  `ZETA_DCHECK` diagnostics.
+- Portable `StackTrace` capture and best-effort `Symbolize()` support.
+- Failure signal handlers that print raw stack frames for common fatal signals.
+
 ## [0.9.0] - 2026-07-14
 
 ### Added

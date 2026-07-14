@@ -26,6 +26,7 @@ monolithic infrastructure library.
 - `time`
 - `memory`
 - `functional`
+- `debugging`
 - `metrics`
 - `container`
 - `crc`
