@@ -2,6 +2,13 @@
 
 All notable changes to Zeta are documented here.
 
+## [0.13.0] - 2026-07-14
+
+### Added
+
+- `StatusChain` for structured error context, underlying causes, code matching,
+  and flattening into existing `StatusOr` flows.
+
 ## [0.12.0] - 2026-07-14
 
 ### Added

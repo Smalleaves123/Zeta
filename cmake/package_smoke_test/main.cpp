@@ -10,6 +10,7 @@
 #include <zeta/log/formatters.h>
 #include <zeta/metrics/metrics.h>
 #include <zeta/random/random.h>
+#include <zeta/status/status_chain.h>
 #include <zeta/strings/str_cat.h>
 
 #include <array>
@@ -44,6 +45,13 @@ int main() {
     random.seed(20260714);
     if (random() != first_random) return 1;
     if (zeta::Exponential(random, 2.0) < 0.0) return 1;
+
+    const auto chained = zeta::ChainStatus(zeta::InternalError("startup"))
+                             .CausedBy(zeta::InvalidArgumentError("config"))
+                             .ToStatus();
+    if (chained.message().find("INVALID_ARGUMENT") == std::string::npos) {
+        return 1;
+    }
 
     const auto civil = zeta::ParseCivilDate("2024-02-29");
     if (!civil.has_value() || zeta::FormatCivilDate(*civil) != "2024-02-29") {

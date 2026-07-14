@@ -84,6 +84,10 @@ Calendar values belong in `time`: use `CivilDate` and `CivilTime` for dates that
 do not yet represent an instant, and require an explicit `TimeZoneSpec` when
 converting them to Unix time.
 
+Use `StatusChain` when an operation crosses multiple service boundaries or
+storage layers. Preserve typed causes while work is in progress and flatten
+only at an API boundary that still accepts `Status` or `StatusOr`.
+
 The `base` module now owns the cross-platform compiler and platform detection
 surface, declaration attributes, optimization hints, and Clang thread-safety
 annotations. These headers should remain dependency-light so every other

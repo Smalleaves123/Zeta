@@ -2,7 +2,7 @@
 
 Zeta is a header-only C++20 library inspired by [Abseil](https://github.com/abseil/abseil-cpp), focusing on **efficiency-critical primitives** that outperform or complement their standard-library counterparts. Every component is designed for real production use — not demos.
 
-Current release: `0.12.0`. See [CHANGELOG.md](./CHANGELOG.md), the
+Current release: `0.13.0`. See [CHANGELOG.md](./CHANGELOG.md), the
 [API stability policy](./docs/api-stability.md), and the
 [release workflow](./docs/release.md).
 
@@ -33,7 +33,7 @@ int main() {
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-ctest --test-dir build                    # 56 CTest targets
+ctest --test-dir build                    # 57 CTest targets
 ```
 
 ### Examples
@@ -576,6 +576,21 @@ for (int v : values) {
 zeta::Result<int> ParseInt(std::string_view s);
 ```
 
+### `zeta/status/status_chain.h` — Error Context and Causes
+
+`StatusChain` preserves the compact `Status` ABI while allowing service code
+to attach context and underlying causes before flattening into `StatusOr`.
+
+```cpp
+auto status = zeta::ChainStatus(zeta::InternalError("request failed"))
+                  .AddContext("loading profile")
+                  .CausedBy(zeta::UnavailableError("database unavailable"))
+                  .ToStatus();
+```
+
+Use `ContainsCode()` when matching an error anywhere in the chain instead of
+parsing flattened message text.
+
 **Full API surface:**
 | Method | Description |
 |--------|------------|
@@ -690,7 +705,7 @@ executor must outlive the `SemiFuture` and all continuations scheduled on it.
 
 4. **Heterogeneous by default.** Any lookup/erase/count method templates on the key type, constrained with transparent hash/equal detection.
 
-5. **Production reliability.** 56 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
+5. **Production reliability.** 57 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
 
 ---
 
