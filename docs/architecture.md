@@ -73,6 +73,10 @@ fields, while formatting and sink selection remain replaceable at the module
 boundary. New observability integrations should consume `LogRecordView` rather
 than depend on formatter internals.
 
+Configuration belongs in `flags`: parsing, environment precedence, help
+generation, and validation should remain in one startup-facing module rather
+than being reimplemented by individual services.
+
 The `base` module now owns the cross-platform compiler and platform detection
 surface, declaration attributes, optimization hints, and Clang thread-safety
 annotations. These headers should remain dependency-light so every other

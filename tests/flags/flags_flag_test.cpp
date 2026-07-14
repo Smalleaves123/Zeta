@@ -1,4 +1,5 @@
 #include "zeta/flags/flag.h"
+#include "zeta/flags/help.h"
 #include "zeta/flags/parse.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -7,12 +8,16 @@
 #include <thread>
 #include <vector>
 #include <string>
+#include <cstdlib>
 
 // Register test flags (static init — registered via ZETA_FLAG macro)
 ZETA_FLAG(int32, test_port, 8080, "Test port number");
 ZETA_FLAG(bool, test_verbose, false, "Enable verbose mode");
 ZETA_FLAG(string, test_name, "default", "Test name");
 ZETA_FLAG(double, test_ratio, 1.5, "Test ratio");
+ZETA_FLAG(float, test_timeout, 1.25f, "Request timeout");
+ZETA_FLAG_ENV(int32, test_env_port, 7000, "Port from the environment",
+             "ZETA_TEST_PORT");
 
 TEST_CASE("flags: default values", "[flags]") {
     REQUIRE(FLAGS_test_port.Get() == 8080);
@@ -58,6 +63,21 @@ TEST_CASE("flags: Parse string", "[flags]") {
     REQUIRE(f.Get() == "hello");
 }
 
+TEST_CASE("flags: Parse float and typed separated arguments", "[flags][typed]") {
+    zeta::Flag<float> timeout("timeout", "timeout", __FILE__, 1.0f);
+    REQUIRE(timeout.Parse("2.5"));
+    REQUIRE(timeout.Get() == 2.5f);
+
+    char arg0[] = "program";
+    char arg1[] = "--test_port";
+    char arg2[] = "9191";
+    char* argv[] = {arg0, arg1, arg2};
+    const auto result = zeta::ParseCommandLineChecked(3, argv);
+    REQUIRE(result.ok());
+    REQUIRE(FLAGS_test_port.Get() == 9191);
+    FLAGS_test_port.Set(8080);
+}
+
 TEST_CASE("flags: ParseCommandLine with known flags", "[flags]") {
     char arg0[] = "program";
     char arg1[] = "--test_port=9090";
@@ -99,11 +119,67 @@ TEST_CASE("flags: TypeName returns correct types", "[flags]") {
     zeta::Flag<bool>     f2("b", "", __FILE__, false);
     zeta::Flag<std::string> f3("c", "", __FILE__, "");
     zeta::Flag<double>   f4("d", "", __FILE__, 0.0);
+    zeta::Flag<float>    f5("e", "", __FILE__, 0.0f);
 
     REQUIRE(f1.TypeName() == "int32");
     REQUIRE(f2.TypeName() == "bool");
     REQUIRE(f3.TypeName() == "string");
     REQUIRE(f4.TypeName() == "double");
+    REQUIRE(f5.TypeName() == "float");
+}
+
+TEST_CASE("flags: environment values apply before command line", "[flags][env]") {
+#if defined(_WIN32)
+    _putenv_s("ZETA_TEST_PORT", "7777");
+#else
+    setenv("ZETA_TEST_PORT", "7777", 1);
+#endif
+    const auto env_errors = zeta::ApplyEnvironmentVariables();
+    REQUIRE(env_errors.empty());
+    REQUIRE(FLAGS_test_env_port.Get() == 7777);
+
+    char arg0[] = "program";
+    char arg1[] = "--test_env_port=8888";
+    char* argv[] = {arg0, arg1};
+    const auto result = zeta::ParseCommandLineChecked(2, argv);
+    REQUIRE(result.ok());
+    REQUIRE(FLAGS_test_env_port.Get() == 8888);
+
+#if defined(_WIN32)
+    _putenv_s("ZETA_TEST_PORT", "");
+#else
+    unsetenv("ZETA_TEST_PORT");
+#endif
+    FLAGS_test_env_port.Set(7000);
+}
+
+TEST_CASE("flags: validators and required configuration are checked", "[flags][validation]") {
+    zeta::Flag<int32_t> positive("positive", "positive", __FILE__, 3);
+    positive.SetValidator([](const int32_t& value) { return value > 0; },
+                          "must be positive");
+    REQUIRE(!positive.Parse("0"));
+    REQUIRE(positive.Get() == 3);
+    REQUIRE(positive.Parse("9"));
+
+    std::string error;
+    REQUIRE(positive.Validate(&error));
+
+    zeta::Flag<int32_t> required(
+        "required", "required", __FILE__, 0, false,
+        zeta::FlagOptions{nullptr, true});
+    REQUIRE(!required.Validate(&error));
+    REQUIRE(error == "required flag was not set");
+    required.Set(1);
+    REQUIRE(required.Validate(&error));
+}
+
+TEST_CASE("flags: generated help includes type, default, and environment", "[flags][help]") {
+    const std::string help = zeta::FormatFlagsHelp("Usage");
+    REQUIRE(help.find("Usage:") != std::string::npos);
+    REQUIRE(help.find("--test_env_port=<int32>") != std::string::npos);
+    REQUIRE(help.find("Port from the environment") != std::string::npos);
+    REQUIRE(help.find("[default: 7000]") != std::string::npos);
+    REQUIRE(help.find("[env: ZETA_TEST_PORT]") != std::string::npos);
 }
 
 TEST_CASE("flags: CurrentValue is safe under concurrent reads", "[flags][thread]") {

@@ -2,6 +2,17 @@
 
 All notable changes to Zeta are documented here.
 
+## [0.11.0] - 2026-07-14
+
+### Added
+
+- Typed flag parsing for separated values, `float`, and environment-backed
+  flags via `ZETA_FLAG_ENV`.
+- `ParseCommandLineChecked()` and `ValidateFlags()` for non-exiting startup
+  configuration validation.
+- Per-flag validators, required flag metadata, and deterministic generated
+  help through `FormatFlagsHelp()`.
+
 ## [0.10.0] - 2026-07-14
 
 ### Added

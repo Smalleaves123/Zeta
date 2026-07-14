@@ -4,6 +4,7 @@
 #include <zeta/crc/crc32c.h>
 #include <zeta/debugging/assert.h>
 #include <zeta/debugging/stack_trace.h>
+#include <zeta/flags/flag.h>
 #include <zeta/functional/pipe.h>
 #include <zeta/log/formatters.h>
 #include <zeta/metrics/metrics.h>
@@ -33,6 +34,9 @@ int main() {
     if (zeta::pipe(1, [](int number) { return number + 1; }) != 2) return 1;
     ZETA_CHECK(value == 7);
     if (zeta::Symbolize(nullptr) != "0x0") return 1;
+
+    zeta::Flag<int> local_flag("local", "local flag", __FILE__, 0);
+    if (!local_flag.Parse("7") || local_flag.Get() != 7) return 1;
 
     zeta::BitGen random(20260714);
     const auto first_random = random();

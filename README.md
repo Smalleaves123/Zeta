@@ -2,7 +2,7 @@
 
 Zeta is a header-only C++20 library inspired by [Abseil](https://github.com/abseil/abseil-cpp), focusing on **efficiency-critical primitives** that outperform or complement their standard-library counterparts. Every component is designed for real production use — not demos.
 
-Current release: `0.10.0`. See [CHANGELOG.md](./CHANGELOG.md), the
+Current release: `0.11.0`. See [CHANGELOG.md](./CHANGELOG.md), the
 [API stability policy](./docs/api-stability.md), and the
 [release workflow](./docs/release.md).
 
@@ -153,7 +153,7 @@ cpp-/
 │   ├── hash/                         # Hash framework
 │   ├── random/                       # PRNG, distributions, reproducible sampling
 │   ├── numeric/                      # Numeric primitives
-│   ├── flags/                        # Command-line flag parsing
+│   ├── flags/                        # Typed flags, env, help, validation
 │   ├── log/                          # Lightweight logging
 │   ├── bits/                         # Low-level bit utilities
 │   ├── cleanup/                      # Scope guard utilities
@@ -203,6 +203,25 @@ ZETA_ASSUME(value >= 0);
 
 The macros degrade to portable no-ops where a compiler-specific feature is not
 available, keeping public headers usable across supported toolchains.
+
+### `zeta/flags/` — Typed Configuration
+
+Flags support typed values, `--flag value` and `--flag=value` syntax,
+environment-variable defaults, generated help text, and validators for
+configuration startup checks.
+
+```cpp
+ZETA_FLAG_ENV(int32, port, 8080, "Listen port", "APP_PORT");
+FLAGS_port.SetValidator([](const int32_t& value) {
+    return value > 0 && value < 65536;
+}, "must be a valid TCP port");
+
+const auto parsed = zeta::ParseCommandLineChecked(argc, argv);
+if (!parsed.ok()) return 1;
+```
+
+Use `zeta::FormatFlagsHelp()` to generate deterministic, documentation-ready
+help output containing types, defaults, environment names, and required markers.
 
 ### `zeta/debugging/` — Assertions and Failure Diagnostics
 

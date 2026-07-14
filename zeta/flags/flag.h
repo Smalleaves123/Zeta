@@ -14,15 +14,22 @@
 ///   // Use: int p = *FLAGS_port;  // 8080 or whatever --port value
 
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 
 #include "zeta/flags/internal/registry.h"
 #include "zeta/strings/numbers.h"
 
 namespace zeta {
+
+struct FlagOptions {
+    const char* env_var = nullptr;
+    bool required = false;
+};
 
 // ═══════════════════════════════════════════════════════════════════════
 // Flag<T> — a single typed flag
@@ -34,8 +41,9 @@ public:
     /// @param register_global  If true, self-register into the global
     ///   registry (for ZETA_FLAG macros).  Pass false for local flags.
     Flag(const char* name, const char* help, const char* filename, T def,
-         bool register_global = false)
-        : FlagEntry(name, help, filename), value_(def), default_(def) {
+         bool register_global = false, FlagOptions options = {})
+        : FlagEntry(name, help, filename, options.env_var, options.required),
+          value_(def), default_(def) {
         if (register_global) Register();
     }
 
@@ -45,24 +53,38 @@ public:
     void Set(T v) noexcept {
         std::lock_guard<std::mutex> lock(mu_);
         value_ = v;
+        MarkSet();
+    }
+
+    template <typename Validator>
+    void SetValidator(Validator validator, std::string message = {}) {
+        std::lock_guard<std::mutex> lock(mu_);
+        validator_ = std::move(validator);
+        validation_message_ = std::move(message);
     }
 
     bool Parse(std::string_view s) noexcept override {
-        std::lock_guard<std::mutex> lock(mu_);
+        T parsed{};
+        bool parsed_ok = false;
         if constexpr (std::is_same_v<T, bool>) {
             if (s == "true" || s == "1" || s == "yes" || s == "y") {
-                value_ = true; return true;
+                parsed = true; parsed_ok = true;
+            } else if (s == "false" || s == "0" || s == "no" || s == "n") {
+                parsed = false; parsed_ok = true;
             }
-            if (s == "false" || s == "0" || s == "no" || s == "n") {
-                value_ = false; return true;
-            }
-            return false;
         } else if constexpr (std::is_same_v<T, std::string>) {
-            value_ = std::string(s);
-            return true;
-        } else {
-            return SimpleAtoi(s, &value_);
+            parsed = std::string(s);
+            parsed_ok = true;
+        } else if constexpr (std::is_arithmetic_v<T>) {
+            parsed_ok = SimpleAtoi(s, &parsed);
         }
+        if (!parsed_ok) return false;
+
+        std::lock_guard<std::mutex> lock(mu_);
+        if (validator_ && !validator_(parsed)) return false;
+        value_ = std::move(parsed);
+        MarkSet();
+        return true;
     }
 
     [[nodiscard]] std::string_view CurrentValue() const noexcept override {
@@ -72,12 +94,36 @@ public:
         return scratch;
     }
 
+    [[nodiscard]] std::string_view DefaultValue() const noexcept override {
+        thread_local std::string scratch;
+        std::lock_guard<std::mutex> lock(mu_);
+        scratch = ToString(default_);
+        return scratch;
+    }
+
+    [[nodiscard]] bool Validate(std::string* error) const override {
+        std::lock_guard<std::mutex> lock(mu_);
+        if (Required() && !IsSet()) {
+            if (error != nullptr) *error = "required flag was not set";
+            return false;
+        }
+        if (validator_ && !validator_(value_)) {
+            if (error != nullptr) {
+                *error = validation_message_.empty()
+                    ? "value failed validation" : validation_message_;
+            }
+            return false;
+        }
+        return true;
+    }
+
     [[nodiscard]] std::string_view TypeName() const noexcept override {
         if constexpr (std::is_same_v<T, bool>)          return "bool";
         else if constexpr (std::is_same_v<T, int32_t>)  return "int32";
         else if constexpr (std::is_same_v<T, int64_t>)  return "int64";
         else if constexpr (std::is_same_v<T, uint32_t>) return "uint32";
         else if constexpr (std::is_same_v<T, uint64_t>) return "uint64";
+        else if constexpr (std::is_same_v<T, float>)    return "float";
         else if constexpr (std::is_same_v<T, double>)   return "double";
         else if constexpr (std::is_same_v<T, std::string>) return "string";
         else return "unknown";
@@ -86,6 +132,8 @@ public:
 private:
     T value_;
     T default_;
+    std::function<bool(const T&)> validator_;
+    std::string validation_message_;
     mutable std::mutex mu_;
 
     template <typename U>
@@ -119,6 +167,16 @@ private:
     inline ::zeta::Flag<::zeta::internal::FlagType_##type>              \
         FLAGS_##name(#name, help_text, __FILE__, (default_value), true)
 
+#define ZETA_FLAG_ENV(type, name, default_value, help_text, env_name)    \
+    inline ::zeta::Flag<::zeta::internal::FlagType_##type>              \
+        FLAGS_##name(#name, help_text, __FILE__, (default_value), true,  \
+                     ::zeta::FlagOptions{env_name, false})
+
+#define ZETA_FLAG_REQUIRED(type, name, default_value, help_text)         \
+    inline ::zeta::Flag<::zeta::internal::FlagType_##type>              \
+        FLAGS_##name(#name, help_text, __FILE__, (default_value), true,  \
+                     ::zeta::FlagOptions{nullptr, true})
+
 namespace zeta {
 namespace internal {
     using FlagType_bool   = bool;
@@ -126,6 +184,7 @@ namespace internal {
     using FlagType_int64  = int64_t;
     using FlagType_uint32 = uint32_t;
     using FlagType_uint64 = uint64_t;
+    using FlagType_float  = float;
     using FlagType_double = double;
     using FlagType_string = std::string;
 } // namespace internal
