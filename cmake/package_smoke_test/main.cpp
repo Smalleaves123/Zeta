@@ -2,6 +2,7 @@
 #include <zeta/base/as_const.h>
 #include <zeta/container/flat_hash_map.h>
 #include <zeta/crc/crc32c.h>
+#include <zeta/time/civil_time.h>
 #include <zeta/debugging/assert.h>
 #include <zeta/debugging/stack_trace.h>
 #include <zeta/flags/flag.h>
@@ -43,6 +44,11 @@ int main() {
     random.seed(20260714);
     if (random() != first_random) return 1;
     if (zeta::Exponential(random, 2.0) < 0.0) return 1;
+
+    const auto civil = zeta::ParseCivilDate("2024-02-29");
+    if (!civil.has_value() || zeta::FormatCivilDate(*civil) != "2024-02-29") {
+        return 1;
+    }
 
     std::array<zeta::LogField, 1> fields{{{"request_id", "42"}}};
     zeta::LogRecordView record{

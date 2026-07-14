@@ -2,6 +2,14 @@
 
 All notable changes to Zeta are documented here.
 
+## [0.12.0] - 2026-07-14
+
+### Added
+
+- `CivilDate` and `CivilTime` with leap-year arithmetic and ISO parsing.
+- UTC, local, and deterministic fixed-offset time-zone conversion.
+- Civil-time formatting and negative Unix timestamp boundary coverage.
+
 ## [0.11.0] - 2026-07-14
 
 ### Added

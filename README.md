@@ -2,7 +2,7 @@
 
 Zeta is a header-only C++20 library inspired by [Abseil](https://github.com/abseil/abseil-cpp), focusing on **efficiency-critical primitives** that outperform or complement their standard-library counterparts. Every component is designed for real production use — not demos.
 
-Current release: `0.11.0`. See [CHANGELOG.md](./CHANGELOG.md), the
+Current release: `0.12.0`. See [CHANGELOG.md](./CHANGELOG.md), the
 [API stability policy](./docs/api-stability.md), and the
 [release workflow](./docs/release.md).
 
@@ -141,7 +141,7 @@ cpp-/
 │   ├── strings/                      # Text building, parsing, matching, escaping
 │   │   └── internal/                 # Non-public string implementation detail
 │   ├── status/                       # Error model and propagation helpers
-│   ├── time/                         # Duration / clock / timestamp primitives
+│   ├── time/                         # Civil time, clocks, timestamps, durations
 │   ├── container/                    # Hash and ordered containers
 │   │   └── internal/                 # Container internals, not API-stable
 │   ├── memory/                       # Views and callable adapters
@@ -222,6 +222,22 @@ if (!parsed.ok()) return 1;
 
 Use `zeta::FormatFlagsHelp()` to generate deterministic, documentation-ready
 help output containing types, defaults, environment names, and required markers.
+
+### `zeta/time/civil_time.h` — Civil Time and Time Zones
+
+`CivilDate` and `CivilTime` model calendar values without silently attaching a
+time zone. They support ISO parsing/formatting, leap-year arithmetic, UTC and
+local conversion, and deterministic fixed-offset conversion.
+
+```cpp
+const auto civil = zeta::ParseCivilTime("2024-02-29T12:30:00.125");
+const auto instant = civil->ToUnixNanos(zeta::TimeZoneSpec::Utc());
+const auto local = zeta::CivilTime::FromUnixNanos(
+    *instant, zeta::TimeZoneSpec::FixedOffset(480));
+```
+
+Named IANA zones are intentionally left to platform time-zone databases;
+`TimeZoneSpec::FixedOffset()` provides stable protocol and test behavior.
 
 ### `zeta/debugging/` — Assertions and Failure Diagnostics
 

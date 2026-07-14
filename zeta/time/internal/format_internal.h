@@ -2,13 +2,10 @@
 #define ZETA_TIME_INTERNAL_FORMAT_INTERNAL_H
 
 #include "zeta/time/clock.h"
+#include "zeta/time/time_zone.h"
 
 #include <chrono>
 #include <ctime>
-
-namespace zeta {
-enum class TimeZone;
-}
 
 namespace zeta::time_internal {
 

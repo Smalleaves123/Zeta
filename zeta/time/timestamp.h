@@ -13,13 +13,9 @@
 #include <string>
 
 #include "zeta/time/clock.h"
+#include "zeta/time/time_zone.h"
 
 namespace zeta {
-
-enum class TimeZone {
-    kLocal,
-    kUtc,
-};
 } // namespace zeta
 
 #include "zeta/time/internal/format_internal.h"

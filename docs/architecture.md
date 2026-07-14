@@ -77,6 +77,10 @@ Configuration belongs in `flags`: parsing, environment precedence, help
 generation, and validation should remain in one startup-facing module rather
 than being reimplemented by individual services.
 
+Calendar values belong in `time`: use `CivilDate` and `CivilTime` for dates that
+do not yet represent an instant, and require an explicit `TimeZoneSpec` when
+converting them to Unix time.
+
 The `base` module now owns the cross-platform compiler and platform detection
 surface, declaration attributes, optimization hints, and Clang thread-safety
 annotations. These headers should remain dependency-light so every other
