@@ -2,7 +2,7 @@
 
 Zeta is a header-only C++20 library inspired by [Abseil](https://github.com/abseil/abseil-cpp), focusing on **efficiency-critical primitives** that outperform or complement their standard-library counterparts. Every component is designed for real production use — not demos.
 
-Current release: `0.8.0`. See [CHANGELOG.md](./CHANGELOG.md), the
+Current release: `0.9.0`. See [CHANGELOG.md](./CHANGELOG.md), the
 [API stability policy](./docs/api-stability.md), and the
 [release workflow](./docs/release.md).
 
@@ -149,7 +149,7 @@ cpp-/
 │   ├── types/                        # Optional / variant / any value types
 │   ├── synchronization/              # Mutex / once / notification
 │   ├── hash/                         # Hash framework
-│   ├── random/                       # PRNG and distributions
+│   ├── random/                       # PRNG, distributions, reproducible sampling
 │   ├── numeric/                      # Numeric primitives
 │   ├── flags/                        # Command-line flag parsing
 │   ├── log/                          # Lightweight logging
@@ -249,7 +249,23 @@ const auto text = normalize(42);  // "42!"
 Use `zeta::Overload{...}` with `std::visit` to keep variant dispatch local and
 readable.
 
-### 2. `zeta/memory/function_ref.h`
+### `zeta/random/` — Distributions and Reproducible Sampling
+
+`BitGen` supports explicit reseeding, raw random bits, normal and exponential
+distributions, and deterministic range shuffling.
+
+```cpp
+zeta::BitGen gen(20260714);
+const auto first = gen();
+gen.seed(20260714);
+assert(gen() == first);
+
+const bool bit = zeta::RandomBit(gen);
+const double latency = zeta::Exponential(gen, 2.0);
+```
+
+### `zeta/memory/function_ref.h`
+
 
 A lightweight, non-owning, type-erased callable reference — analogous to `std::string_view` but for callables.
 

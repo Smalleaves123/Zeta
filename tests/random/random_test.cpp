@@ -32,6 +32,14 @@ TEST_CASE("BitGen: explicit seed produces deterministic sequence", "[random]") {
     }
 }
 
+TEST_CASE("BitGen: seed resets to a reproducible sequence", "[random][seed]") {
+    zeta::BitGen gen(42);
+    const auto first = gen();
+    (void)gen();
+    gen.seed(42);
+    REQUIRE(gen() == first);
+}
+
 TEST_CASE("BitGen: different seeds produce different sequences", "[random]") {
     zeta::BitGen g1(42);
     zeta::BitGen g2(99);
@@ -220,6 +228,62 @@ TEST_CASE("Bernoulli: p outside [0,1] handled", "[random][bernoulli]") {
     zeta::BitGen gen(1);
     REQUIRE(zeta::Bernoulli(gen, -0.5) == false);
     REQUIRE(zeta::Bernoulli(gen, 1.5) == true);
+}
+
+TEST_CASE("RandomBit and UniformBits produce deterministic raw bits", "[random][bits]") {
+    zeta::BitGen g1(123);
+    zeta::BitGen g2(123);
+    for (int i = 0; i < 100; ++i) {
+        REQUIRE(zeta::RandomBit(g1) == zeta::RandomBit(g2));
+        REQUIRE(zeta::UniformBits<uint32_t>(g1) ==
+                zeta::UniformBits<uint32_t>(g2));
+    }
+}
+
+TEST_CASE("Normal: samples stay near requested moments", "[random][normal]") {
+    zeta::BitGen gen(42);
+    constexpr int kSamples = 10000;
+    double sum = 0.0;
+    double squared_sum = 0.0;
+    for (int i = 0; i < kSamples; ++i) {
+        const double value = zeta::Normal(gen, 3.0, 2.0);
+        sum += value;
+        squared_sum += value * value;
+    }
+    const double mean = sum / kSamples;
+    const double variance = squared_sum / kSamples - mean * mean;
+    REQUIRE(mean > 2.85);
+    REQUIRE(mean < 3.15);
+    REQUIRE(variance > 3.4);
+    REQUIRE(variance < 4.6);
+}
+
+TEST_CASE("Exponential: samples are non-negative and have expected mean",
+          "[random][exponential]") {
+    zeta::BitGen gen(42);
+    constexpr int kSamples = 10000;
+    double sum = 0.0;
+    for (int i = 0; i < kSamples; ++i) {
+        const double value = zeta::Exponential(gen, 2.0);
+        REQUIRE(value >= 0.0);
+        sum += value;
+    }
+    const double mean = sum / kSamples;
+    REQUIRE(mean > 0.46);
+    REQUIRE(mean < 0.54);
+}
+
+TEST_CASE("Shuffle: same seed produces the same permutation", "[random][shuffle]") {
+    std::vector<int> first{1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<int> second = first;
+    zeta::BitGen g1(99);
+    zeta::BitGen g2(99);
+    zeta::Shuffle(g1, first.begin(), first.end());
+    zeta::Shuffle(g2, second.begin(), second.end());
+    REQUIRE(first == second);
+    const std::vector<int> expected{1, 2, 3, 4, 5, 6, 7, 8};
+    REQUIRE(std::is_permutation(first.begin(), first.end(),
+                                expected.begin(), expected.end()));
 }
 
 // ═══════════════════════════════════════════════════════════════════

@@ -5,6 +5,7 @@
 #include <zeta/functional/pipe.h>
 #include <zeta/log/formatters.h>
 #include <zeta/metrics/metrics.h>
+#include <zeta/random/random.h>
 #include <zeta/strings/str_cat.h>
 
 #include <array>
@@ -28,6 +29,12 @@ int main() {
         zeta::StrCat("alpha=", values.at("alpha"), ", requests=", requests.value());
     if (message != "alpha=7, requests=1") return 1;
     if (zeta::pipe(1, [](int number) { return number + 1; }) != 2) return 1;
+
+    zeta::BitGen random(20260714);
+    const auto first_random = random();
+    random.seed(20260714);
+    if (random() != first_random) return 1;
+    if (zeta::Exponential(random, 2.0) < 0.0) return 1;
 
     std::array<zeta::LogField, 1> fields{{{"request_id", "42"}}};
     zeta::LogRecordView record{

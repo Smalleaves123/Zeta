@@ -16,9 +16,12 @@
 ///   bool  coin  = zeta::Bernoulli(gen, 0.5);
 
 #include <bit>
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <type_traits>
+#include <utility>
 
 #include "zeta/bits/bit_ops.h"
 
@@ -36,8 +39,11 @@ namespace zeta {
 class BitGen {
 public:
     using result_type = uint64_t;
+    using seed_type = uint64_t;
 
-    BitGen() { seed(5489ULL); }
+    static constexpr seed_type kDefaultSeed = 5489ULL;
+
+    BitGen() { seed(kDefaultSeed); }
 
     /// Seed with a single 64-bit value (expanded to 256 bits via SplitMix64).
     explicit BitGen(uint64_t seed_val) { seed(seed_val); }
@@ -45,6 +51,21 @@ public:
     // Compatible with std::uniform_int_distribution etc.
     static constexpr uint64_t min() noexcept { return 0; }
     static constexpr uint64_t max() noexcept { return UINT64_MAX; }
+
+    /// Reset the engine to a reproducible stream derived from `seed_val`.
+    void seed(seed_type seed_val) noexcept {
+        // SplitMix64 expansion from a single seed to four state words.
+        auto splitmix64 = [&]() -> uint64_t {
+            uint64_t z = (seed_val += 0x9e3779b97f4a7c15ULL);
+            z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+            z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+            return z ^ (z >> 31);
+        };
+        s_[0] = splitmix64();
+        s_[1] = splitmix64();
+        s_[2] = splitmix64();
+        s_[3] = splitmix64();
+    }
 
     /// Generate the next 64-bit random value.
     uint64_t operator()() noexcept {
@@ -79,20 +100,6 @@ public:
 
 private:
     uint64_t s_[4];
-
-    void seed(uint64_t seed_val) noexcept {
-        // SplitMix64 expansion from a single seed to four state words.
-        auto splitmix64 = [&]() -> uint64_t {
-            uint64_t z = (seed_val += 0x9e3779b97f4a7c15ULL);
-            z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
-            z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
-            return z ^ (z >> 31);
-        };
-        s_[0] = splitmix64();
-        s_[1] = splitmix64();
-        s_[2] = splitmix64();
-        s_[3] = splitmix64();
-    }
 };
 
 // ── Uniform integer distribution ─────────────────────────────────────
@@ -134,6 +141,21 @@ inline uint64_t uniform_uint64(BitGen& gen, uint64_t range) {
 }
 
 } // namespace random_internal
+
+// ── Raw random bits ──────────────────────────────────────────────────
+
+/// Returns uniformly distributed raw bits of an unsigned integer type.
+template <typename UInt = uint64_t>
+UInt UniformBits(BitGen& gen) noexcept {
+    static_assert(std::is_integral_v<UInt> && std::is_unsigned_v<UInt>,
+                  "UniformBits requires an unsigned integer type");
+    return static_cast<UInt>(gen());
+}
+
+/// Returns one unbiased random bit.
+inline bool RandomBit(BitGen& gen) noexcept {
+    return (UniformBits<uint64_t>(gen) & 1ULL) != 0;
+}
 
 // ── Uniform distribution ─────────────────────────────────────────────
 
@@ -178,6 +200,37 @@ inline bool Bernoulli(BitGen& gen, double p) {
     if (p <= 0.0) return false;
     if (p >= 1.0) return true;
     return Uniform(gen, 0.0, 1.0) < p;
+}
+
+// ── Additional distributions and sequence helpers ───────────────────
+
+/// Returns a normally distributed value using the Box–Muller transform.
+/// Non-positive or non-finite standard deviations return `mean`.
+inline double Normal(BitGen& gen, double mean = 0.0, double stddev = 1.0) {
+    if (!(stddev > 0.0) || !std::isfinite(stddev)) return mean;
+
+    double u1 = 0.0;
+    while (u1 == 0.0) u1 = Uniform(gen, 0.0, 1.0);
+    const double u2 = Uniform(gen, 0.0, 1.0);
+    constexpr double kTwoPi = 6.283185307179586476925286766559;
+    return mean + stddev * std::sqrt(-2.0 * std::log(u1)) *
+                      std::cos(kTwoPi * u2);
+}
+
+/// Returns an exponentially distributed value with rate `lambda`.
+/// Non-positive or non-finite rates return zero.
+inline double Exponential(BitGen& gen, double lambda) {
+    if (!(lambda > 0.0) || !std::isfinite(lambda)) return 0.0;
+
+    double u = 0.0;
+    while (u == 0.0) u = Uniform(gen, 0.0, 1.0);
+    return -std::log1p(-u) / lambda;
+}
+
+/// Shuffles a range using the supplied reproducible engine.
+template <typename RandomIt>
+void Shuffle(BitGen& gen, RandomIt first, RandomIt last) {
+    std::shuffle(first, last, gen);
 }
 
 } // namespace zeta

@@ -2,6 +2,14 @@
 
 All notable changes to Zeta are documented here.
 
+## [0.9.0] - 2026-07-14
+
+### Added
+
+- Public `BitGen::seed()` for reproducible stream resets.
+- `RandomBit()` and `UniformBits()` for raw random bit generation.
+- `Normal()` and `Exponential()` distributions plus deterministic `Shuffle()`.
+
 ## [0.8.0] - 2026-07-14
 
 ### Added
