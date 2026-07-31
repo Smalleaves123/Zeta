@@ -2,6 +2,15 @@
 
 All notable changes to Zeta are documented here.
 
+## [Unreleased]
+
+### Added
+
+- `zeta::service::RequestContext` for request-scoped IDs, Trace IDs, metadata,
+  deadlines, and cooperative cancellation.
+- Generic request-context propagation helpers for HTTP and RPC metadata
+  carriers.
+
 ## [0.13.0] - 2026-07-14
 
 ### Added

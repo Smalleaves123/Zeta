@@ -108,6 +108,7 @@ Available module targets currently include:
 - `zeta::memory`
 - `zeta::metrics`
 - `zeta::futures`
+- `zeta::service`
 - `zeta::functional`
 - `zeta::meta`
 - `zeta::numeric`
@@ -148,6 +149,7 @@ cpp-/
 │   ├── functional/                   # Callable composition helpers
 │   ├── metrics/                      # Counters, gauges, histograms, timers
 │   ├── futures/                      # Promise / future contract and chaining
+│   ├── service/                      # Request-scoped deadlines, metadata, cancellation, propagation
 │   ├── types/                        # Optional / variant / any value types
 │   ├── synchronization/              # Mutex / once / notification
 │   ├── hash/                         # Hash framework
@@ -692,6 +694,29 @@ auto result = std::move(future).GetFor(
 Cancellation is cooperative: it stops the caller's wait and does not forcibly
 terminate a producer or continuation. `Via()` borrows its `Executor`; the
 executor must outlive the `SemiFuture` and all continuations scheduled on it.
+
+### 13. `zeta/service/` — Request Context and Propagation
+
+`RequestContext` carries request IDs, Trace IDs, metadata, deadlines, and
+cooperative cancellation state. Child contexts inherit the request state while
+being allowed to tighten the deadline. Generic metadata carriers can be used
+by HTTP and RPC adapters without coupling Zeta to a transport implementation.
+
+```cpp
+zeta::CancellationSource cancellation;
+auto context = zeta::RequestContext::WithTimeout(
+    zeta::Duration::Seconds(2), cancellation.GetToken());
+context.SetRequestId("request-42");
+context.SetTraceId("trace-7");
+context.SetMetadata("tenant", "acme");
+
+zeta::RequestContext::Metadata headers;
+zeta::InjectRequestContext(context, headers);
+auto downstream = zeta::ExtractRequestContext(headers);
+```
+
+`RequestContext::Check()` returns `Cancelled` before `DeadlineExceeded` when
+both conditions are observed.
 
 ---
 

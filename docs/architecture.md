@@ -37,6 +37,7 @@ The authoritative module dependency and ownership map is maintained in
 - `random`
 - `types`
 - `futures`
+- `service`
 
 ### Low-Level Public Modules
 

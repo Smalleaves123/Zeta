@@ -14,6 +14,7 @@ cmake --build build/examples
 ```bash
 ./build/examples/examples/zeta_example_quickstart
 ./build/examples/examples/zeta_example_status_time
+./build/examples/examples/zeta_example_service_context
 ./build/examples/examples/zeta_example_time_control
 ./build/examples/examples/zeta_example_time_retry
 ./build/examples/examples/zeta_example_log_random
@@ -29,6 +30,7 @@ cmake --build build/examples
 
 - `quickstart.cpp`: `flat_hash_map`, `InlinedVector`, `StrCat`, `StrJoin`, `StrSplit`
 - `status_time.cpp`: `Result`, `Status`, integer parsing, local/UTC timestamps
+- `service_context.cpp`: request IDs, metadata, deadlines, cancellation, and propagation
 - `time_control.cpp`: `Stopwatch`, `Deadline`, `PeriodicTimer`, `ExponentialBackoff`
 - `time_retry.cpp`: retry budget with attempts, deadline, and exponential backoff
 - `log_random.cpp`: structured logging, `BitGen`, `Uniform`, `Bernoulli`
