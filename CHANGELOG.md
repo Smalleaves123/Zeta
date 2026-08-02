@@ -10,6 +10,9 @@ All notable changes to Zeta are documented here.
   deadlines, and cooperative cancellation.
 - Generic request-context propagation helpers for HTTP and RPC metadata
   carriers.
+- W3C `traceparent` parsing, metadata size limits, and structured log
+  correlation through `LogMessage::WithContext()`.
+- Standalone `futures/cancellation.h` for lightweight cancellation consumers.
 
 ## [0.13.0] - 2026-07-14
 

@@ -206,6 +206,43 @@ TEST_CASE("log: structured fields are formatted as JSON", "[log][structured]") {
     std::filesystem::remove(path);
 }
 
+TEST_CASE("log: request context fields are included", "[log][structured]") {
+    auto path = std::filesystem::temp_directory_path() /
+        "zeta_log_context_test.log";
+    std::filesystem::remove(path);
+
+    const auto trace = zeta::TraceContext::ParseTraceParent(
+        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
+    REQUIRE(trace.ok());
+
+    zeta::RequestContext context;
+    REQUIRE(context.SetRequestId("request-42").ok());
+    REQUIRE(context.SetTraceContext(*trace).ok());
+
+    {
+        zeta::JsonLogFormatter formatter;
+        zeta::log_internal::FileLogSink sink(path, 0, false);
+        zeta::log_internal::ScopedLogSink scoped_sink(&sink);
+        zeta::log_internal::ScopedLogFormatter scoped_formatter(&formatter);
+        zeta::LogMessage(zeta::log_internal::LogSeverity::INFO,
+                         "context.cpp", 21)
+            .WithContext(context)
+            << "request completed";
+    }
+
+    std::ifstream in(path);
+    std::string content((std::istreambuf_iterator<char>(in)),
+                        std::istreambuf_iterator<char>());
+    REQUIRE(content.find("\"request_id\":\"request-42\"") !=
+            std::string::npos);
+    REQUIRE(content.find("\"trace_id\":\"4bf92f3577b34da6a3ce929d0e0e4736\"") !=
+            std::string::npos);
+    REQUIRE(content.find("\"span_id\":\"00f067aa0ba902b7\"") !=
+            std::string::npos);
+
+    std::filesystem::remove(path);
+}
+
 TEST_CASE("log: conditional macro only emits when enabled", "[log]") {
     TestSink sink;
     zeta::log_internal::ScopedLogSink scoped_sink(&sink);

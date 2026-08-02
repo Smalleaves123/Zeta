@@ -4,9 +4,12 @@
 /// @file   service/request_context.h
 /// @brief  Request-scoped metadata, deadline, and cancellation state.
 
-#include "zeta/futures/future.h"
+#include "zeta/futures/cancellation.h"
+#include "zeta/service/trace_context.h"
+#include "zeta/status/status.h"
 #include "zeta/time/stopwatch.h"
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -19,6 +22,12 @@ class RequestContext {
 public:
     using MetadataEntry = std::pair<std::string, std::string>;
     using Metadata = std::vector<MetadataEntry>;
+
+    static constexpr std::size_t kMaxMetadataEntries = 64;
+    static constexpr std::size_t kMaxMetadataKeyLength = 128;
+    static constexpr std::size_t kMaxMetadataValueLength = 4096;
+    static constexpr std::size_t kMaxRequestIdLength = 128;
+    static constexpr std::size_t kMaxTraceIdLength = 128;
 
     RequestContext() noexcept
         : deadline_(Deadline::Never()) {}
@@ -50,6 +59,7 @@ public:
             cancellation_);
         child.request_id_ = request_id_;
         child.trace_id_ = trace_id_;
+        child.trace_context_ = trace_context_;
         child.metadata_ = metadata_;
         return child;
     }
@@ -84,30 +94,69 @@ public:
         return cancellation_;
     }
 
-    void SetRequestId(std::string request_id) {
+    [[nodiscard]] Status SetRequestId(std::string request_id) {
+        if (request_id.size() > kMaxRequestIdLength) {
+            return InvalidArgumentError("request id is too long");
+        }
         request_id_ = std::move(request_id);
+        return OkStatus();
     }
 
     [[nodiscard]] std::string_view request_id() const noexcept {
         return request_id_;
     }
 
-    void SetTraceId(std::string trace_id) {
+    [[nodiscard]] Status SetTraceId(std::string trace_id) {
+        if (trace_id.size() > kMaxTraceIdLength) {
+            return InvalidArgumentError("trace id is too long");
+        }
         trace_id_ = std::move(trace_id);
+        trace_context_.reset();
+        return OkStatus();
     }
 
     [[nodiscard]] std::string_view trace_id() const noexcept {
         return trace_id_;
     }
 
-    void SetMetadata(std::string key, std::string value) {
+    [[nodiscard]] const TraceContext* trace_context() const noexcept {
+        return trace_context_.has_value() ? &*trace_context_ : nullptr;
+    }
+
+    [[nodiscard]] static Status ValidateMetadata(
+        std::string_view key, std::string_view value) {
+        if (key.empty()) return InvalidArgumentError("metadata key is empty");
+        if (key.size() > kMaxMetadataKeyLength) {
+            return InvalidArgumentError("metadata key is too long");
+        }
+        if (value.size() > kMaxMetadataValueLength) {
+            return InvalidArgumentError("metadata value is too long");
+        }
+        return OkStatus();
+    }
+
+    [[nodiscard]] Status SetMetadata(std::string key, std::string value) {
+        const Status validation = ValidateMetadata(key, value);
+        if (!validation.ok()) return validation;
         for (auto& entry : metadata_) {
             if (entry.first == key) {
                 entry.second = std::move(value);
-                return;
+                return OkStatus();
             }
         }
+        if (metadata_.size() >= kMaxMetadataEntries) {
+            return ResourceExhaustedError("metadata entry limit exceeded");
+        }
         metadata_.emplace_back(std::move(key), std::move(value));
+        return OkStatus();
+    }
+
+    [[nodiscard]] Status SetTraceContext(TraceContext trace_context) {
+        const Status validation = trace_context.Validate();
+        if (!validation.ok()) return validation;
+        trace_id_ = std::string(trace_context.trace_id());
+        trace_context_ = std::move(trace_context);
+        return OkStatus();
     }
 
     [[nodiscard]] std::optional<std::string_view> GetMetadata(
@@ -127,6 +176,7 @@ private:
     CancellationToken cancellation_;
     std::string request_id_;
     std::string trace_id_;
+    std::optional<TraceContext> trace_context_;
     Metadata metadata_;
 };
 

@@ -11,6 +11,7 @@
 #include <zeta/metrics/metrics.h>
 #include <zeta/random/random.h>
 #include <zeta/status/status_chain.h>
+#include <zeta/service/propagation.h>
 #include <zeta/strings/str_cat.h>
 
 #include <array>
@@ -52,6 +53,16 @@ int main() {
     if (chained.message().find("INVALID_ARGUMENT") == std::string::npos) {
         return 1;
     }
+
+    const auto trace = zeta::TraceContext::ParseTraceParent(
+        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
+    if (!trace.ok()) return 1;
+    zeta::RequestContext context;
+    if (!context.SetTraceContext(*trace).ok()) return 1;
+    zeta::RequestContext::Metadata carrier;
+    if (!zeta::InjectRequestContext(context, carrier).ok()) return 1;
+    const auto extracted = zeta::ExtractRequestContext(carrier);
+    if (!extracted.ok() || extracted->trace_context() == nullptr) return 1;
 
     const auto civil = zeta::ParseCivilDate("2024-02-29");
     if (!civil.has_value() || zeta::FormatCivilDate(*civil) != "2024-02-29") {

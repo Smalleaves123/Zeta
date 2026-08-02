@@ -33,7 +33,7 @@ int main() {
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-ctest --test-dir build                    # 57 CTest targets
+ctest --test-dir build                    # 58 CTest targets
 ```
 
 ### Examples
@@ -64,6 +64,7 @@ cmake --build build-fuzz
 ./build-fuzz/fuzz/strings_numbers_fuzz
 ./build-fuzz/fuzz/status_status_fuzz
 ./build-fuzz/fuzz/status_statusor_fuzz
+./build-fuzz/fuzz/trace_context_fuzz
 ./build-fuzz/fuzz/container_btree_map_fuzz
 ./build-fuzz/fuzz/container_node_hash_map_fuzz
 ./build-fuzz/fuzz/crc32c_fuzz
@@ -697,26 +698,28 @@ executor must outlive the `SemiFuture` and all continuations scheduled on it.
 
 ### 13. `zeta/service/` — Request Context and Propagation
 
-`RequestContext` carries request IDs, Trace IDs, metadata, deadlines, and
-cooperative cancellation state. Child contexts inherit the request state while
-being allowed to tighten the deadline. Generic metadata carriers can be used
-by HTTP and RPC adapters without coupling Zeta to a transport implementation.
+`RequestContext` carries request IDs, Trace IDs, W3C Trace Context, metadata,
+deadlines, and cooperative cancellation state. Child contexts inherit the
+request state while being allowed to tighten the deadline. Metadata is bounded
+to 64 entries, 128-byte keys, and 4096-byte values. Generic metadata carriers
+can be used by HTTP and RPC adapters without coupling Zeta to a transport
+implementation.
 
 ```cpp
 zeta::CancellationSource cancellation;
 auto context = zeta::RequestContext::WithTimeout(
     zeta::Duration::Seconds(2), cancellation.GetToken());
-context.SetRequestId("request-42");
-context.SetTraceId("trace-7");
-context.SetMetadata("tenant", "acme");
+if (!context.SetRequestId("request-42").ok()) return 1;
+if (!context.SetMetadata("tenant", "acme").ok()) return 1;
 
 zeta::RequestContext::Metadata headers;
-zeta::InjectRequestContext(context, headers);
+if (!zeta::InjectRequestContext(context, headers).ok()) return 1;
 auto downstream = zeta::ExtractRequestContext(headers);
+if (!downstream.ok()) return 1;
 ```
 
-`RequestContext::Check()` returns `Cancelled` before `DeadlineExceeded` when
-both conditions are observed.
+`TraceContext::ParseTraceParent()` accepts W3C `traceparent` values and
+`LogMessage::WithContext()` adds request, trace, and span fields to structured logs.
 
 ---
 
@@ -730,7 +733,7 @@ both conditions are observed.
 
 4. **Heterogeneous by default.** Any lookup/erase/count method templates on the key type, constrained with transparent hash/equal detection.
 
-5. **Production reliability.** 57 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
+5. **Production reliability.** 58 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
 
 ---
 

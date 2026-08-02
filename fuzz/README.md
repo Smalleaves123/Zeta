@@ -73,6 +73,7 @@ cmake --build build-fuzz-engine
 - `numeric_int128_fuzz`
 - `status_status_fuzz`
 - `status_statusor_fuzz`
+- `trace_context_fuzz`
 - `container_inlined_vector_fuzz`
 - `container_btree_map_fuzz`
 - `container_node_hash_map_fuzz`

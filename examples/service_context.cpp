@@ -26,16 +26,27 @@ int main() {
     zeta::CancellationSource cancellation;
     auto context = zeta::RequestContext::WithTimeout(
         zeta::Duration::Seconds(1), cancellation.GetToken());
-    context.SetRequestId("request-42");
-    context.SetTraceId("trace-7");
-    context.SetMetadata("tenant", "acme");
+    if (!context.SetRequestId("request-42").ok() ||
+        !context.SetTraceId("trace-7").ok() ||
+        !context.SetMetadata("tenant", "acme").ok()) {
+        std::cerr << "invalid request context" << std::endl;
+        return 1;
+    }
 
     zeta::RequestContext::Metadata carrier;
-    zeta::InjectRequestContext(context, carrier);
-    const auto downstream = zeta::ExtractRequestContext(
+    const zeta::Status injected = zeta::InjectRequestContext(context, carrier);
+    if (!injected.ok()) {
+        std::cerr << injected.ToString() << std::endl;
+        return 1;
+    }
+    const auto downstream_result = zeta::ExtractRequestContext(
         carrier, zeta::Deadline::After(zeta::Duration::Milliseconds(500)));
+    if (!downstream_result.ok()) {
+        std::cerr << downstream_result.status().ToString() << std::endl;
+        return 1;
+    }
 
-    const zeta::Status result = HandleRequest(downstream);
+    const zeta::Status result = HandleRequest(*downstream_result);
     if (!result.ok()) {
         std::cerr << result.ToString() << std::endl;
         return 1;

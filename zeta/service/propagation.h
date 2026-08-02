@@ -13,58 +13,107 @@
 namespace zeta {
 
 inline constexpr std::string_view kRequestIdHeader = "x-request-id";
+inline constexpr std::string_view kTraceParentHeader = "traceparent";
 inline constexpr std::string_view kTraceIdHeader = "x-trace-id";
 
 namespace service_internal {
 
-inline void UpsertMetadata(
+inline Status UpsertMetadata(
     RequestContext::Metadata& carrier,
     std::string_view key,
     std::string_view value) {
+    const Status validation = RequestContext::ValidateMetadata(key, value);
+    if (!validation.ok()) return validation;
     for (auto& entry : carrier) {
         if (entry.first == key) {
             entry.second.assign(value);
-            return;
+            return OkStatus();
         }
     }
+    if (carrier.size() >= RequestContext::kMaxMetadataEntries) {
+        return ResourceExhaustedError("metadata entry limit exceeded");
+    }
     carrier.emplace_back(std::string(key), std::string(value));
+    return OkStatus();
 }
 
 } // namespace service_internal
 
-inline void InjectRequestContext(
+[[nodiscard]] inline Status InjectRequestContext(
     const RequestContext& context,
     RequestContext::Metadata& carrier) {
+    RequestContext::Metadata updated = carrier;
+    if (updated.size() > RequestContext::kMaxMetadataEntries) {
+        return ResourceExhaustedError("metadata entry limit exceeded");
+    }
+    for (const auto& entry : updated) {
+        const Status validation =
+            RequestContext::ValidateMetadata(entry.first, entry.second);
+        if (!validation.ok()) return validation;
+    }
+    Status result;
+
     if (!context.request_id().empty()) {
-        service_internal::UpsertMetadata(
-            carrier, kRequestIdHeader, context.request_id());
+        result = service_internal::UpsertMetadata(
+            updated, kRequestIdHeader, context.request_id());
+        if (!result.ok()) return result;
     }
-    if (!context.trace_id().empty()) {
-        service_internal::UpsertMetadata(
-            carrier, kTraceIdHeader, context.trace_id());
+
+    if (const TraceContext* trace_context = context.trace_context();
+        trace_context != nullptr) {
+        result = service_internal::UpsertMetadata(
+            updated, kTraceParentHeader, trace_context->ToTraceParent());
+        if (!result.ok()) return result;
+    } else if (!context.trace_id().empty()) {
+        result = service_internal::UpsertMetadata(
+            updated, kTraceIdHeader, context.trace_id());
+        if (!result.ok()) return result;
     }
+
     for (const auto& entry : context.metadata()) {
-        if (entry.first == kRequestIdHeader || entry.first == kTraceIdHeader) {
+        if (entry.first == kRequestIdHeader ||
+            entry.first == kTraceParentHeader ||
+            entry.first == kTraceIdHeader) {
             continue;
         }
-        service_internal::UpsertMetadata(carrier, entry.first, entry.second);
+        result = service_internal::UpsertMetadata(updated, entry.first, entry.second);
+        if (!result.ok()) return result;
     }
+
+    carrier.swap(updated);
+    return OkStatus();
 }
 
-[[nodiscard]] inline RequestContext ExtractRequestContext(
+[[nodiscard]] inline StatusOr<RequestContext> ExtractRequestContext(
     const RequestContext::Metadata& carrier,
     Deadline deadline = Deadline::Never(),
     CancellationToken cancellation = {}) {
     RequestContext context =
         RequestContext::WithDeadline(deadline, std::move(cancellation));
+    bool has_trace_parent = false;
+    std::string legacy_trace_id;
+
     for (const auto& entry : carrier) {
         if (entry.first == kRequestIdHeader) {
-            context.SetRequestId(entry.second);
+            const Status result = context.SetRequestId(entry.second);
+            if (!result.ok()) return result;
+        } else if (entry.first == kTraceParentHeader) {
+            const auto parsed = TraceContext::ParseTraceParent(entry.second);
+            if (!parsed.ok()) return parsed.status();
+            const Status result = context.SetTraceContext(*parsed);
+            if (!result.ok()) return result;
+            has_trace_parent = true;
         } else if (entry.first == kTraceIdHeader) {
-            context.SetTraceId(entry.second);
+            legacy_trace_id = entry.second;
         } else {
-            context.SetMetadata(entry.first, entry.second);
+            const Status result = context.SetMetadata(entry.first, entry.second);
+            if (!result.ok()) return result;
         }
+    }
+
+    if (!has_trace_parent && !legacy_trace_id.empty()) {
+        const Status result = context.SetTraceId(std::move(legacy_trace_id));
+        if (!result.ok()) return result;
     }
     return context;
 }

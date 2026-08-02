@@ -9,5 +9,6 @@ target_link_libraries(zeta_package_smoke_test PRIVATE
     zeta::container
     zeta::crc
     zeta::metrics
+    zeta::service
     zeta::strings
 )

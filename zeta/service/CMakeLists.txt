@@ -4,4 +4,5 @@ zeta_module(service
     HEADERS
     propagation.h
     request_context.h
+    trace_context.h
 )
