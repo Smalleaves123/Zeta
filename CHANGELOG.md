@@ -20,11 +20,17 @@ All notable changes to Zeta are documented here.
 - Chunked `MemoryPool` and typed `ObjectPool<T>` for reusable allocations.
 - `SmallMap`, `IntrusiveList`, LRU/LFU caches, a non-blocking
   `BoundedQueue<T>`, and a bounded MPMC `LockFreeQueue<T>`.
+- Independent `Executor`/`ThreadPoolExecutor` scheduling primitives and
+  structured `TaskGroup` cancellation/joining.
+- `AsyncQueue<T>` for Future-based receive, bounded buffering, close
+  propagation, and cancellation-aware pending receivers.
 
 ### Changed
 
 - Removed the application-service dependency from `zeta::log`; request-context
   enrichment now lives in an optional service-side adapter.
+- `CancellationToken` remains usable without Future and now supports
+  cancellation registrations for generic asynchronous components.
 
 ## [0.13.0] - 2026-07-14
 

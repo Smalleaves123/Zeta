@@ -19,6 +19,7 @@
 #include "zeta/status/status.h"
 #include "zeta/status/statusor.h"
 #include "zeta/futures/cancellation.h"
+#include "zeta/futures/executor.h"
 
 #include <algorithm>
 #include <cassert>
@@ -42,20 +43,6 @@ class SemiFuture;
 
 template <typename T>
 class Promise;
-
-class Executor {
-public:
-    virtual ~Executor() = default;
-
-    /// Schedules one task. Executor is non-owning in Future/SemiFuture:
-    /// callers must keep it alive until all attached continuations finish.
-    virtual void Add(std::function<void()> task) = 0;
-};
-
-class InlineExecutor final : public Executor {
-public:
-    void Add(std::function<void()> task) override { task(); }
-};
 
 template <typename T>
 std::pair<Promise<T>, Future<T>> makePromiseContract();
@@ -129,9 +116,13 @@ inline void DispatchContinuation(
         auto shared_continuation =
             std::shared_ptr<typename FutureState<T>::ContinuationBase>(std::move(continuation));
         auto shared_source = std::make_shared<StatusOr<T>>(std::move(source));
-        executor->Add([shared_continuation, shared_source]() mutable {
+        try {
+            executor->Add([shared_continuation, shared_source]() mutable {
+                shared_continuation->Run(std::move(*shared_source));
+            });
+        } catch (...) {
             shared_continuation->Run(std::move(*shared_source));
-        });
+        }
         return;
     }
 

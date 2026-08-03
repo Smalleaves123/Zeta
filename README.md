@@ -33,7 +33,7 @@ int main() {
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-ctest --test-dir build                    # 66 CTest targets
+ctest --test-dir build                    # 67 CTest targets
 ```
 
 ### Examples
@@ -777,6 +777,26 @@ auto result = std::move(future).GetFor(
 // result is either the value, DeadlineExceeded, or Cancelled.
 ```
 
+`Executor` is an independent scheduling interface. Use `InlineExecutor` for
+deterministic execution or `ThreadPoolExecutor` for basic background work.
+`TaskGroup` adds structured cancellation and joining; task exceptions are
+reported by `Wait()` and trigger group cancellation.
+
+`AsyncQueue<T>` connects producers and consumers through `Future<T>`:
+
+```cpp
+zeta::AsyncQueue<Message> queue(128);
+auto next = queue.Receive(cancellation.GetToken());
+if (auto result = std::move(next).GetFor(timeout, cancellation.GetToken());
+    result.ok()) {
+    Handle(*result);
+}
+```
+
+Closing an async queue rejects new sends, drains already buffered values, and
+completes pending receives with the supplied status. It has no transport or
+service-specific semantics.
+
 Cancellation is cooperative: it stops the caller's wait and does not forcibly
 terminate a producer or continuation. `Via()` borrows its `Executor`; the
 executor must outlive the `SemiFuture` and all continuations scheduled on it.
@@ -845,7 +865,7 @@ and span fields to structured logs without coupling `zeta::log` to services.
 
 4. **Heterogeneous by default.** Any lookup/erase/count method templates on the key type, constrained with transparent hash/equal detection.
 
-5. **Production reliability.** 66 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
+5. **Production reliability.** 67 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
 
 ---
 

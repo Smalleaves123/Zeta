@@ -8,6 +8,7 @@ target_link_libraries(zeta_package_smoke_test PRIVATE
     zeta::algorithm
     zeta::container
     zeta::crc
+    zeta::futures
     zeta::log
     zeta::memory
     zeta::metrics

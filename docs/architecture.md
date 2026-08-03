@@ -91,6 +91,13 @@ explicit close behavior, `BoundedQueue<T>` for mutex-protected try-only
 operations, and `LockFreeQueue<T>` for bounded MPMC workloads that can accept
 try-only full/empty results.
 
+Future-based scheduling belongs in `futures`: keep `Executor` independent so
+thread pools and inline execution can be reused outside Future chains. Use
+`TaskGroup` to define task lifetime and cooperative cancellation, and
+`AsyncQueue<T>` when a producer should hand values to a Future-based consumer.
+These abstractions must not depend on sockets, HTTP metadata, RPC framing, or
+service request context.
+
 Small, ownership-oriented data structures belong in `container`: use
 `SmallMap` for short maps, `IntrusiveList` when nodes are owned elsewhere, and
 the LRU/LFU caches for bounded in-process reuse rather than introducing global

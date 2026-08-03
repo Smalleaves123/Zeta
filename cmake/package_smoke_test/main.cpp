@@ -9,6 +9,8 @@
 #include <zeta/debugging/assert.h>
 #include <zeta/debugging/stack_trace.h>
 #include <zeta/flags/flag.h>
+#include <zeta/futures/async_queue.h>
+#include <zeta/futures/executor.h>
 #include <zeta/functional/pipe.h>
 #include <zeta/log/formatters.h>
 #include <zeta/metrics/metrics.h>
@@ -83,6 +85,13 @@ int main() {
     }
     zeta::LockFreeQueue<int> lock_free(2);
     if (!lock_free.TryPush(7) || lock_free.TryPop().value_or(0) != 7) {
+        return 1;
+    }
+    zeta::InlineExecutor executor;
+    executor.Add([] {});
+    zeta::AsyncQueue<int> async_queue;
+    if (!async_queue.Send(7).ok() ||
+        std::move(async_queue.Receive()).Get().value_or(0) != 7) {
         return 1;
     }
 
