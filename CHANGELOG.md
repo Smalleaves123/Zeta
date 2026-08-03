@@ -10,9 +10,17 @@ All notable changes to Zeta are documented here.
   deadlines, and cooperative cancellation.
 - Generic request-context propagation helpers for HTTP and RPC metadata
   carriers.
-- W3C `traceparent` parsing, metadata size limits, and structured log
-  correlation through `LogMessage::WithContext()`.
+- W3C `traceparent` parsing, metadata size limits, and optional structured-log
+  correlation through `zeta/service/log_adapter.h`.
 - Standalone `futures/cancellation.h` for lightweight cancellation consumers.
+- Generic `zeta::ByteBuffer` for owning binary storage with prefix consumption.
+- Thread-safe `zeta::Channel<T>` with bounded/unbounded queues, blocking
+  operations, move-only value support, and explicit close semantics.
+
+### Changed
+
+- Removed the application-service dependency from `zeta::log`; request-context
+  enrichment now lives in an optional service-side adapter.
 
 ## [0.13.0] - 2026-07-14
 

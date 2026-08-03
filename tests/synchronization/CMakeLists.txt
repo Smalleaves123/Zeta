@@ -1,3 +1,4 @@
+zeta_test(synchronization_channel_test zeta::synchronization)
 zeta_test(synchronization_mutex_test zeta::synchronization)
 zeta_test(synchronization_notification_test zeta::synchronization)
 zeta_test(synchronization_once_test zeta::synchronization)

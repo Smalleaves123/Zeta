@@ -1,6 +1,6 @@
 # log/ module — structured records, formatters, and sinks
 zeta_module(log
-    DEPS zeta_service zeta_time
+    DEPS zeta_time
     HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/formatters.h
     ${CMAKE_CURRENT_SOURCE_DIR}/log.h

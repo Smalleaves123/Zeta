@@ -23,7 +23,6 @@
 #include "zeta/log/internal/severity.h"
 #include "zeta/log/internal/sink.h"
 #include "zeta/log/record.h"
-#include "zeta/service/request_context.h"
 
 namespace zeta {
 
@@ -73,21 +72,6 @@ public:
         field_stream << value;
         fields_.push_back(
             LogField{std::string(key), std::move(field_stream).str()});
-        return *this;
-    }
-
-    LogMessage& WithContext(const RequestContext& context) {
-        if (!context.request_id().empty()) {
-            WithField("request_id", context.request_id());
-        }
-        if (!context.trace_id().empty()) {
-            WithField("trace_id", context.trace_id());
-        }
-        if (const TraceContext* trace_context = context.trace_context();
-            trace_context != nullptr) {
-            WithField("span_id", trace_context->span_id());
-            WithField("traceparent", trace_context->ToTraceParent());
-        }
         return *this;
     }
 

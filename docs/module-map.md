@@ -13,7 +13,7 @@ The module registration order in `zeta/CMakeLists.txt` follows these layers:
 | Foundation | `algorithm`, `base`, `bits`, `cleanup`, `meta`, `numeric`, `synchronization` | No Zeta module dependencies |
 | Core values | `memory`, `status`, `time`, `strings`, `types` | Reusable value and platform abstractions |
 | Data and adapters | `container`, `crc`, `hash`, `random`, `functional` | Depends only on foundation/core modules |
-| Infrastructure | `debugging`, `flags`, `futures`, `service`, `log`, `metrics`, `utility` | Application-facing facilities and compatibility surface |
+| Infrastructure | `debugging`, `flags`, `futures`, `log`, `service`, `metrics`, `utility` | Application-facing facilities and compatibility surface |
 
 Key edges:
 
@@ -25,6 +25,8 @@ memory ─────────────► functional
 time ───────────────► log, metrics
 strings ────────────► flags
 futures, time ──────► service
+time ───────────────► log
+log ────────────────► service (optional adapter)
 ```
 
 Each module exposes an interface target named `zeta::<module>`. The umbrella

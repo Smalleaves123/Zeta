@@ -9,10 +9,12 @@
 #include <zeta/functional/pipe.h>
 #include <zeta/log/formatters.h>
 #include <zeta/metrics/metrics.h>
+#include <zeta/memory/byte_buffer.h>
 #include <zeta/random/random.h>
 #include <zeta/status/status_chain.h>
 #include <zeta/service/propagation.h>
 #include <zeta/strings/str_cat.h>
+#include <zeta/synchronization/channel.h>
 
 #include <array>
 #include <string>
@@ -37,6 +39,19 @@ int main() {
     if (zeta::pipe(1, [](int number) { return number + 1; }) != 2) return 1;
     ZETA_CHECK(value == 7);
     if (zeta::Symbolize(nullptr) != "0x0") return 1;
+
+    zeta::ByteBuffer buffer;
+    buffer.Append("package");
+    if (buffer.Size() != 7 || !buffer.Consume(4) || buffer.Size() != 3) {
+        return 1;
+    }
+
+    zeta::Channel<int> channel(1);
+    if (!channel.TrySend(7) || channel.TrySend(8) ||
+        channel.TryReceive().value_or(0) != 7) {
+        return 1;
+    }
+    channel.Close();
 
     zeta::Flag<int> local_flag("local", "local flag", __FILE__, 0);
     if (!local_flag.Parse("7") || local_flag.Get() != 7) return 1;

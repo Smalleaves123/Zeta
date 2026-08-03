@@ -75,7 +75,15 @@ When expanding the library:
 Logging belongs in `log`: application-facing records may attach structured
 fields, while formatting and sink selection remain replaceable at the module
 boundary. New observability integrations should consume `LogRecordView` rather
-than depend on formatter internals.
+than depend on formatter internals. Request-context correlation is an optional
+service-side adapter in `service/log_adapter.h`; the general logging module
+does not depend on application request types.
+
+Byte storage belongs in `memory`: use `ByteBuffer` for owning append and prefix
+consumption without coupling a transport protocol to the library. Thread-safe
+message passing belongs in `synchronization`: use `Channel<T>` when producers
+and consumers need blocking, bounded or unbounded queue semantics and explicit
+close behavior.
 
 Configuration belongs in `flags`: parsing, environment precedence, help
 generation, and validation should remain in one startup-facing module rather

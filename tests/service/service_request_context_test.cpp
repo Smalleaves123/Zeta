@@ -1,8 +1,12 @@
 #include "zeta/service/propagation.h"
+#include "zeta/service/log_adapter.h"
+#include "zeta/log/formatters.h"
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstddef>
+#include <filesystem>
+#include <fstream>
 #include <string>
 
 TEST_CASE("RequestContext: defaults to an unbounded active request", "[service]") {
@@ -123,4 +127,43 @@ TEST_CASE("RequestContext: rejects untrusted metadata limits", "[service]") {
     }
     REQUIRE(context.SetMetadata("overflow", "value").code() ==
             zeta::StatusCode::kResourceExhausted);
+}
+
+TEST_CASE("RequestContext: enriches structured logs through an adapter",
+          "[service][log]") {
+    auto path = std::filesystem::temp_directory_path() /
+        "zeta_service_log_context_test.log";
+    std::filesystem::remove(path);
+
+    const auto trace = zeta::TraceContext::ParseTraceParent(
+        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
+    REQUIRE(trace.ok());
+
+    zeta::RequestContext context;
+    REQUIRE(context.SetRequestId("request-42").ok());
+    REQUIRE(context.SetTraceContext(*trace).ok());
+
+    {
+        zeta::JsonLogFormatter formatter;
+        zeta::log_internal::FileLogSink sink(path, 0, false);
+        zeta::log_internal::ScopedLogSink scoped_sink(&sink);
+        zeta::log_internal::ScopedLogFormatter scoped_formatter(&formatter);
+        zeta::WithRequestContext(
+            zeta::LogMessage(zeta::log_internal::LogSeverity::INFO,
+                             "context.cpp", 21),
+            context)
+            << "request completed";
+    }
+
+    std::ifstream in(path);
+    std::string content((std::istreambuf_iterator<char>(in)),
+                        std::istreambuf_iterator<char>());
+    REQUIRE(content.find("\"request_id\":\"request-42\"") !=
+            std::string::npos);
+    REQUIRE(content.find("\"trace_id\":\"4bf92f3577b34da6a3ce929d0e0e4736\"") !=
+            std::string::npos);
+    REQUIRE(content.find("\"span_id\":\"00f067aa0ba902b7\"") !=
+            std::string::npos);
+
+    std::filesystem::remove(path);
 }

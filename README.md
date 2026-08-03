@@ -33,7 +33,7 @@ int main() {
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-ctest --test-dir build                    # 58 CTest targets
+ctest --test-dir build                    # 60 CTest targets
 ```
 
 ### Examples
@@ -146,13 +146,13 @@ cpp-/
 │   ├── time/                         # Civil time, clocks, timestamps, durations
 │   ├── container/                    # Hash and ordered containers
 │   │   └── internal/                 # Container internals, not API-stable
-│   ├── memory/                       # Views and callable adapters
+│   ├── memory/                       # Byte storage, views, and callable adapters
 │   ├── functional/                   # Callable composition helpers
 │   ├── metrics/                      # Counters, gauges, histograms, timers
 │   ├── futures/                      # Promise / future contract and chaining
 │   ├── service/                      # Request-scoped deadlines, metadata, cancellation, propagation
 │   ├── types/                        # Optional / variant / any value types
-│   ├── synchronization/              # Mutex / once / notification
+│   ├── synchronization/              # Mutex / once / notification / channels
 │   ├── hash/                         # Hash framework
 │   ├── random/                       # PRNG, distributions, reproducible sampling
 │   ├── numeric/                      # Numeric primitives
@@ -277,6 +277,19 @@ ZETA_LOG(INFO)
 Use `zeta::JsonLogFormatter` with a custom sink when logs must be consumed by
 an observability pipeline.
 
+The logging module intentionally does not depend on request or transport
+types. Applications that use `zeta::service` can opt into correlation through
+`zeta/service/log_adapter.h`:
+
+```cpp
+#include <zeta/service/log_adapter.h>
+
+zeta::WithRequestContext(
+    zeta::LogMessage(zeta::log_internal::LogSeverity::INFO, __FILE__, __LINE__),
+    context)
+    << "request completed";
+```
+
 ### 2. `zeta/crc/crc32c.h` — CRC32C Checksums
 
 Portable Castagnoli CRC32C with both one-shot and streaming APIs:
@@ -369,7 +382,32 @@ auto tail = s.subspan(1);  // view of {2, 3}
 
 ---
 
-### 3. `zeta/memory/any_invocable.h`
+### 3. `zeta/memory/byte_buffer.h`
+
+`ByteBuffer` owns binary data while allowing callers to append chunks and
+consume a readable prefix. It has no transport, framing, or protocol policy.
+
+```cpp
+#include <zeta/memory/byte_buffer.h>
+
+zeta::ByteBuffer buffer;
+buffer.Append("header");
+buffer.Append(std::span<const std::byte>(payload.data(), payload.size()));
+
+auto readable = buffer.ReadableBytes();
+if (readable.size() >= frame_size) {
+    ParseFrame(readable.first(frame_size));
+    buffer.Consume(frame_size);
+}
+```
+
+`Consume()` returns `false` without changing the buffer when the requested
+prefix is larger than the readable data. `Reserve()` retains capacity across
+`Clear()` and prefix compaction.
+
+---
+
+### 4. `zeta/memory/any_invocable.h`
 
 Move-only owning callable wrapper for cases where `function_ref` is too short-lived
 and `std::function` is too copy-oriented.
@@ -385,7 +423,7 @@ int answer = fn(2);  // 42
 
 ---
 
-### 4. `zeta/memory/bind_front.h`
+### 5. `zeta/memory/bind_front.h`
 
 Front-binds leading arguments without the ceremony or type-erasure cost of `std::bind`.
 
@@ -696,7 +734,28 @@ Cancellation is cooperative: it stops the caller's wait and does not forcibly
 terminate a producer or continuation. `Via()` borrows its `Executor`; the
 executor must outlive the `SemiFuture` and all continuations scheduled on it.
 
-### 13. `zeta/service/` — Request Context and Propagation
+### `zeta/synchronization/channel.h` — Thread-Safe Message Passing
+
+`Channel<T>` is a mutex-protected queue with blocking and non-blocking send and
+receive operations. A capacity of zero creates an unbounded queue; closing a
+channel rejects new values, wakes waiters, and lets consumers drain queued
+values.
+
+```cpp
+#include <zeta/synchronization/channel.h>
+
+zeta::Channel<std::string> messages(128);
+messages.Send("ready");
+if (auto message = messages.TryReceive()) {
+    Handle(*message);
+}
+messages.Close();
+```
+
+`Channel<T>` supports move-only values. `Receive()` returns `std::nullopt` only
+when the channel is closed and empty.
+
+### `zeta/service/` — Request Context and Propagation
 
 `RequestContext` carries request IDs, Trace IDs, W3C Trace Context, metadata,
 deadlines, and cooperative cancellation state. Child contexts inherit the
@@ -719,7 +778,8 @@ if (!downstream.ok()) return 1;
 ```
 
 `TraceContext::ParseTraceParent()` accepts W3C `traceparent` values and
-`LogMessage::WithContext()` adds request, trace, and span fields to structured logs.
+`zeta::WithRequestContext()` from `service/log_adapter.h` adds request, trace,
+and span fields to structured logs without coupling `zeta::log` to services.
 
 ---
 
@@ -733,7 +793,7 @@ if (!downstream.ok()) return 1;
 
 4. **Heterogeneous by default.** Any lookup/erase/count method templates on the key type, constrained with transparent hash/equal detection.
 
-5. **Production reliability.** 58 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
+5. **Production reliability.** 60 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
 
 ---
 
