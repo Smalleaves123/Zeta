@@ -33,7 +33,7 @@ int main() {
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-ctest --test-dir build                    # 60 CTest targets
+ctest --test-dir build                    # 66 CTest targets
 ```
 
 ### Examples
@@ -146,13 +146,13 @@ cpp-/
 │   ├── time/                         # Civil time, clocks, timestamps, durations
 │   ├── container/                    # Hash and ordered containers
 │   │   └── internal/                 # Container internals, not API-stable
-│   ├── memory/                       # Byte storage, views, and callable adapters
+│   ├── memory/                       # Buffers, pools, views, and callable adapters
 │   ├── functional/                   # Callable composition helpers
 │   ├── metrics/                      # Counters, gauges, histograms, timers
 │   ├── futures/                      # Promise / future contract and chaining
 │   ├── service/                      # Request-scoped deadlines, metadata, cancellation, propagation
 │   ├── types/                        # Optional / variant / any value types
-│   ├── synchronization/              # Mutex / once / notification / channels
+│   ├── synchronization/              # Mutex / queues / once / notification
 │   ├── hash/                         # Hash framework
 │   ├── random/                       # PRNG, distributions, reproducible sampling
 │   ├── numeric/                      # Numeric primitives
@@ -405,9 +405,34 @@ if (readable.size() >= frame_size) {
 prefix is larger than the readable data. `Reserve()` retains capacity across
 `Clear()` and prefix compaction.
 
+`ByteBufferView` is a non-owning view over readable bytes. `Subspan()` and
+`AsStringView()` inspect or slice data without copying; the view is invalidated
+when its source buffer reallocates or is destroyed.
+
 ---
 
-### 4. `zeta/memory/any_invocable.h`
+### 4. `zeta/memory/memory_pool.h` and `object_pool.h`
+
+`MemoryPool` reuses aligned fixed-size raw blocks in chunks. `ObjectPool<T>`
+adds construction and destruction for typed objects without requiring a
+general-purpose allocator at each call site.
+
+```cpp
+#include <zeta/memory/object_pool.h>
+
+zeta::ObjectPool<Node> nodes(128);
+Node* node = nodes.Create(/* constructor arguments */);
+Use(node);
+nodes.Destroy(node);
+```
+
+Pool storage is released by the pool destructor. Outstanding objects must be
+destroyed before the pool is destroyed; `MemoryPool::Clear()` invalidates all
+outstanding raw blocks.
+
+---
+
+### 5. `zeta/memory/any_invocable.h`
 
 Move-only owning callable wrapper for cases where `function_ref` is too short-lived
 and `std::function` is too copy-oriented.
@@ -423,7 +448,7 @@ int answer = fn(2);  // 42
 
 ---
 
-### 5. `zeta/memory/bind_front.h`
+### 6. `zeta/memory/bind_front.h`
 
 Front-binds leading arguments without the ceremony or type-erasure cost of `std::bind`.
 
@@ -713,6 +738,28 @@ auto snapshot = latency.Snapshot();
 Histogram bounds are inclusive and the final bucket captures overflow samples.
 `ScopedTimer` records monotonic elapsed nanoseconds.
 
+### `zeta/container/` — Small Maps, Caches, and Intrusive Lists
+
+`SmallMap<Key, Value, N>` keeps entries in `InlinedVector` storage and is a
+good fit for metadata and configuration maps that usually contain only a few
+keys. `LruCache`/`LRUCache` and `LfuCache`/`LFUCache` provide non-thread-safe
+bounded caches; `Find()` returns a pointer and updates recency/frequency while
+supporting values that are not copyable. `IntrusiveList` links caller-owned
+objects through an embedded hook and never takes ownership.
+
+```cpp
+#include <zeta/container/lfu_cache.h>
+#include <zeta/container/lru_cache.h>
+#include <zeta/container/small_map.h>
+
+zeta::SmallMap<std::string, std::string, 8> metadata;
+metadata["tenant"] = "acme";
+
+zeta::LRUCache<std::string, Payload> cache(1024);
+cache.Put("key", payload);
+if (auto* value = cache.Find("key")) Use(*value);
+```
+
 ---
 
 ### 12. `zeta/futures/future.h` — Future / Promise Composition
@@ -739,7 +786,8 @@ executor must outlive the `SemiFuture` and all continuations scheduled on it.
 `Channel<T>` is a mutex-protected queue with blocking and non-blocking send and
 receive operations. A capacity of zero creates an unbounded queue; closing a
 channel rejects new values, wakes waiters, and lets consumers drain queued
-values.
+values. `BoundedQueue<T>` provides mutex-protected, non-blocking fixed-capacity
+operations when callers prefer explicit full/empty results.
 
 ```cpp
 #include <zeta/synchronization/channel.h>
@@ -754,6 +802,10 @@ messages.Close();
 
 `Channel<T>` supports move-only values. `Receive()` returns `std::nullopt` only
 when the channel is closed and empty.
+
+`LockFreeQueue<T>` is a bounded MPMC queue for `TryPush()` and `TryPop()` when
+callers need lock-free progress and can handle a full or empty result. Its
+capacity is rounded up to a power of two, and `T` must be nothrow-movable.
 
 ### `zeta/service/` — Request Context and Propagation
 
@@ -793,7 +845,7 @@ and span fields to structured logs without coupling `zeta::log` to services.
 
 4. **Heterogeneous by default.** Any lookup/erase/count method templates on the key type, constrained with transparent hash/equal detection.
 
-5. **Production reliability.** 60 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
+5. **Production reliability.** 66 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
 
 ---
 

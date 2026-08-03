@@ -1,6 +1,9 @@
 #include <zeta/algorithm/algorithm.h>
 #include <zeta/base/as_const.h>
 #include <zeta/container/flat_hash_map.h>
+#include <zeta/container/lfu_cache.h>
+#include <zeta/container/lru_cache.h>
+#include <zeta/container/small_map.h>
 #include <zeta/crc/crc32c.h>
 #include <zeta/time/civil_time.h>
 #include <zeta/debugging/assert.h>
@@ -10,11 +13,14 @@
 #include <zeta/log/formatters.h>
 #include <zeta/metrics/metrics.h>
 #include <zeta/memory/byte_buffer.h>
+#include <zeta/memory/object_pool.h>
 #include <zeta/random/random.h>
 #include <zeta/status/status_chain.h>
 #include <zeta/service/propagation.h>
 #include <zeta/strings/str_cat.h>
 #include <zeta/synchronization/channel.h>
+#include <zeta/synchronization/bounded_queue.h>
+#include <zeta/synchronization/lock_free_queue.h>
 
 #include <array>
 #include <string>
@@ -52,6 +58,33 @@ int main() {
         return 1;
     }
     channel.Close();
+
+    zeta::SmallMap<std::string, int, 2> small_values;
+    small_values["alpha"] = 7;
+    if (!small_values.contains("alpha")) return 1;
+    zeta::LruCache<std::string, int> lru(1);
+    if (!lru.Put("alpha", 7) || lru.Find("alpha") == nullptr) return 1;
+    zeta::LfuCache<std::string, int> lfu(1);
+    if (!lfu.Put("alpha", 7) || lfu.Find("alpha") == nullptr) return 1;
+
+    struct PooledValue {
+        explicit PooledValue(int value) : value(value) {}
+        int value;
+    };
+    zeta::ObjectPool<PooledValue> objects(2);
+    auto* pooled = objects.Create(7);
+    if (pooled->value != 7) return 1;
+    objects.Destroy(pooled);
+
+    zeta::BoundedQueue<int> bounded(1);
+    if (!bounded.TryPush(7) || bounded.TryPush(8) ||
+        bounded.TryPop().value_or(0) != 7) {
+        return 1;
+    }
+    zeta::LockFreeQueue<int> lock_free(2);
+    if (!lock_free.TryPush(7) || lock_free.TryPop().value_or(0) != 7) {
+        return 1;
+    }
 
     zeta::Flag<int> local_flag("local", "local flag", __FILE__, 0);
     if (!local_flag.Parse("7") || local_flag.Get() != 7) return 1;

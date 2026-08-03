@@ -80,10 +80,21 @@ service-side adapter in `service/log_adapter.h`; the general logging module
 does not depend on application request types.
 
 Byte storage belongs in `memory`: use `ByteBuffer` for owning append and prefix
-consumption without coupling a transport protocol to the library. Thread-safe
-message passing belongs in `synchronization`: use `Channel<T>` when producers
-and consumers need blocking, bounded or unbounded queue semantics and explicit
-close behavior.
+consumption without coupling a transport protocol to the library. Use
+`ByteBufferView` when a read-only slice is enough and copying would be wasteful.
+Use `MemoryPool` and `ObjectPool<T>` only when allocation lifetime and block
+ownership are explicit.
+
+Thread-safe message passing belongs in `synchronization`: use `Channel<T>` when
+producers and consumers need blocking, bounded or unbounded queue semantics and
+explicit close behavior, `BoundedQueue<T>` for mutex-protected try-only
+operations, and `LockFreeQueue<T>` for bounded MPMC workloads that can accept
+try-only full/empty results.
+
+Small, ownership-oriented data structures belong in `container`: use
+`SmallMap` for short maps, `IntrusiveList` when nodes are owned elsewhere, and
+the LRU/LFU caches for bounded in-process reuse rather than introducing global
+registries.
 
 Configuration belongs in `flags`: parsing, environment precedence, help
 generation, and validation should remain in one startup-facing module rather

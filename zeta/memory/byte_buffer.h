@@ -13,6 +13,53 @@
 
 namespace zeta {
 
+class ByteBufferView {
+public:
+    static constexpr std::size_t kNpos = static_cast<std::size_t>(-1);
+
+    constexpr ByteBufferView() noexcept = default;
+
+    constexpr explicit ByteBufferView(
+        std::span<const std::byte> bytes) noexcept
+        : bytes_(bytes) {}
+
+    explicit ByteBufferView(std::string_view bytes) noexcept
+        : bytes_(reinterpret_cast<const std::byte*>(bytes.data()), bytes.size()) {}
+
+    [[nodiscard]] constexpr std::span<const std::byte> Bytes() const noexcept {
+        return bytes_;
+    }
+
+    [[nodiscard]] constexpr std::size_t Size() const noexcept {
+        return bytes_.size();
+    }
+
+    [[nodiscard]] constexpr bool Empty() const noexcept {
+        return bytes_.empty();
+    }
+
+    [[nodiscard]] constexpr const std::byte& operator[](
+        std::size_t index) const noexcept {
+        return bytes_[index];
+    }
+
+    [[nodiscard]] constexpr ByteBufferView Subspan(
+        std::size_t offset, std::size_t count = kNpos) const noexcept {
+        if (offset > bytes_.size()) return {};
+        return ByteBufferView(bytes_.subspan(
+            offset, std::min(count, bytes_.size() - offset)));
+    }
+
+    [[nodiscard]] std::string_view AsStringView() const noexcept {
+        if (bytes_.empty()) return {};
+        return std::string_view(
+            reinterpret_cast<const char*>(bytes_.data()), bytes_.size());
+    }
+
+private:
+    std::span<const std::byte> bytes_;
+};
+
 class ByteBuffer {
 public:
     using value_type = std::byte;
@@ -38,6 +85,10 @@ public:
         if (Empty()) return {};
         return std::span<const std::byte>(
             storage_.data() + read_offset_, Size());
+    }
+
+    [[nodiscard]] ByteBufferView ReadableView() const noexcept {
+        return ByteBufferView(ReadableBytes());
     }
 
     [[nodiscard]] std::size_t Size() const noexcept {

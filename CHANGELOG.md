@@ -16,6 +16,10 @@ All notable changes to Zeta are documented here.
 - Generic `zeta::ByteBuffer` for owning binary storage with prefix consumption.
 - Thread-safe `zeta::Channel<T>` with bounded/unbounded queues, blocking
   operations, move-only value support, and explicit close semantics.
+- `ByteBufferView` for non-owning zero-copy byte inspection and slicing.
+- Chunked `MemoryPool` and typed `ObjectPool<T>` for reusable allocations.
+- `SmallMap`, `IntrusiveList`, LRU/LFU caches, a non-blocking
+  `BoundedQueue<T>`, and a bounded MPMC `LockFreeQueue<T>`.
 
 ### Changed
 

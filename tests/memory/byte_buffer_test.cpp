@@ -20,6 +20,10 @@ TEST_CASE("ByteBuffer: appends text and binary data", "[memory][byte_buffer]") {
     REQUIRE(buffer.ReadableBytes()[0] == std::byte{'h'});
     REQUIRE(buffer.ReadableBytes()[5] == std::byte{0x00});
     REQUIRE(buffer.ReadableBytes()[7] == std::byte{0xff});
+
+    const zeta::ByteBufferView view = buffer.ReadableView();
+    REQUIRE(view.Bytes().data() == buffer.ReadableBytes().data());
+    REQUIRE(view.Subspan(5).AsStringView().size() == 3);
 }
 
 TEST_CASE("ByteBuffer: consumes a prefix and compacts on append",
