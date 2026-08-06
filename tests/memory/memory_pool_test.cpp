@@ -59,3 +59,15 @@ TEST_CASE("ObjectPool: constructs and destroys typed values",
     REQUIRE(PooledValue::destructions == 2);
     REQUIRE(pool.Size() == 0);
 }
+
+TEST_CASE("ObjectPool: destroys live values when the pool is destroyed",
+          "[memory][pool]") {
+    PooledValue::destructions = 0;
+    {
+        zeta::ObjectPool<PooledValue> pool(2);
+        (void)pool.Create(7);
+        (void)pool.Create(9);
+        REQUIRE(pool.Size() == 2);
+    }
+    REQUIRE(PooledValue::destructions == 2);
+}
