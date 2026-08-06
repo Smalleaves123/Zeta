@@ -443,6 +443,25 @@ TEST_CASE("InlinedVector: move-only type", "[inlined_vector]") {
     REQUIRE(v.size() == 2);
 }
 
+TEST_CASE("InlinedVector: swap preserves nontrivial objects across storage",
+          "[inlined_vector][swap]") {
+    zeta::InlinedVector<std::string, 2> inline_values;
+    inline_values.push_back(std::string(128, 'a'));
+
+    zeta::InlinedVector<std::string, 2> heap_values;
+    heap_values.push_back(std::string(128, 'b'));
+    heap_values.push_back(std::string(128, 'c'));
+    heap_values.push_back(std::string(128, 'd'));
+
+    inline_values.swap(heap_values);
+
+    REQUIRE(inline_values.size() == 3);
+    REQUIRE(inline_values[0] == std::string(128, 'b'));
+    REQUIRE(inline_values[2] == std::string(128, 'd'));
+    REQUIRE(heap_values.size() == 1);
+    REQUIRE(heap_values[0] == std::string(128, 'a'));
+}
+
 TEST_CASE("InlinedVector: move-only types are not copyable", "[inlined_vector][compile]") {
     static_assert(!std::is_copy_constructible_v<zeta::InlinedVector<std::unique_ptr<int>, 4>>);
     static_assert(!std::is_copy_assignable_v<zeta::InlinedVector<std::unique_ptr<int>, 4>>);

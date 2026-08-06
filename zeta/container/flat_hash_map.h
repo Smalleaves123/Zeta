@@ -163,8 +163,15 @@ public:
     void clear() { table_.clear(); }
 
     // ── Swap ──────────────────────────────────────────────────────
-    void swap(flat_hash_map& other) noexcept { table_.swap(other.table_); }
-    friend void swap(flat_hash_map& a, flat_hash_map& b) noexcept { a.swap(b); }
+    void swap(flat_hash_map& other) noexcept(
+        std::is_nothrow_swappable_v<Hash> &&
+        std::is_nothrow_swappable_v<KeyEq>) {
+        table_.swap(other.table_);
+    }
+    friend void swap(flat_hash_map& a, flat_hash_map& b)
+        noexcept(noexcept(a.swap(b))) {
+        a.swap(b);
+    }
 
     // ── Equality ──────────────────────────────────────────────────
     bool operator==(const flat_hash_map& other) const {

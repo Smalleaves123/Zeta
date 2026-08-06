@@ -17,7 +17,6 @@
 #include <cassert>
 #include <concepts>
 #include <cstddef>
-#include <cstring>
 #include <initializer_list>
 #include <iterator>
 #include <limits>
@@ -428,23 +427,53 @@ public:
             swap(size_, other.size_);
             return;
         }
-        // One or both are heap — swap metadata first.
-        swap(data_,     other.data_);
-        swap(size_,     other.size_);
-        swap(capacity_, other.capacity_);
-        // Swap inline buffer contents.
-        char tmp[sizeof(T) * N];
-        std::memcpy(tmp, inline_buf_, sizeof(inline_buf_));
-        std::memcpy(inline_buf_, other.inline_buf_, sizeof(other.inline_buf_));
-        std::memcpy(other.inline_buf_, tmp, sizeof(tmp));
-        // Fix data_ pointers: after inline_buf_ memcpy, any side that
-        // is now inline must point to its OWN inline buffer (the old
-        // data_ pointer referenced the other object's memory).
-        if (capacity_ == N) data_ = inline_ptr();
-        if (other.capacity_ == N) other.data_ = other.inline_ptr();
+        // Both heap-backed vectors only need their ownership metadata swapped.
+        if (!is_inline() && !other.is_inline()) {
+            swap(data_, other.data_);
+            swap(size_, other.size_);
+            swap(capacity_, other.capacity_);
+            return;
+        }
+
+        // Move the inline objects into the heap-backed vector's own inline
+        // storage before exchanging the heap pointer. Byte-copying these
+        // objects would violate their lifetime and ownership invariants.
+        if (is_inline() && !other.is_inline()) {
+            const size_t inline_size = size_;
+            size_t moved = 0;
+            try {
+                for (; moved < inline_size; ++moved) {
+                    ::new (other.inline_ptr() + moved)
+                        T(std::move(inline_ptr()[moved]));
+                }
+            } catch (...) {
+                for (size_t i = 0; i < moved; ++i)
+                    other.inline_ptr()[i].~T();
+                throw;
+            }
+
+            for (size_t i = 0; i < inline_size; ++i) inline_ptr()[i].~T();
+
+            T* heap_data = other.data_;
+            const size_t heap_size = other.size_;
+            const size_t heap_capacity = other.capacity_;
+            data_ = heap_data;
+            size_ = heap_size;
+            capacity_ = heap_capacity;
+            other.data_ = other.inline_ptr();
+            other.size_ = inline_size;
+            other.capacity_ = N;
+            return;
+        }
+
+        // The reverse state is handled by the same transfer logic above.
+        other.swap(*this);
     }
 
-    friend void swap(InlinedVector& a, InlinedVector& b) noexcept { a.swap(b); }
+    friend void swap(InlinedVector& a, InlinedVector& b)
+        noexcept(noexcept(a.swap(b))) {
+        a.swap(b);
+    }
 
     bool operator==(const InlinedVector& other) const {
         return size_ == other.size_ &&

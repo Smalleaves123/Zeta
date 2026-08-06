@@ -8,6 +8,7 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+#include <stdexcept>
 
 using namespace std::literals;
 
@@ -34,6 +35,26 @@ struct CollisionHash {
     size_t operator()(int value) const noexcept {
         return static_cast<size_t>(value & 0x0F);
     }
+};
+
+struct ThrowingCopyValue {
+    static inline int live_count = 0;
+    static inline int copy_calls = 0;
+    static inline int throw_after = -1;
+
+    int value = 0;
+
+    explicit ThrowingCopyValue(int value) : value(value) { ++live_count; }
+    ThrowingCopyValue(const ThrowingCopyValue& other) : value(other.value) {
+        if (throw_after >= 0 && copy_calls++ >= throw_after) {
+            throw std::runtime_error("copy");
+        }
+        ++live_count;
+    }
+    ThrowingCopyValue(ThrowingCopyValue&& other) noexcept : value(other.value) {
+        ++live_count;
+    }
+    ~ThrowingCopyValue() { --live_count; }
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -207,6 +228,25 @@ TEST_CASE("flat_hash_map: copy", "[map]") {
     auto b = a;
     REQUIRE(b.size() == 2);
     REQUIRE(a == b);
+}
+
+TEST_CASE("flat_hash_map: copy cleans up after value copy throws",
+          "[map][exception]") {
+    ThrowingCopyValue::live_count = 0;
+    ThrowingCopyValue::copy_calls = 0;
+    ThrowingCopyValue::throw_after = -1;
+
+    zeta::flat_hash_map<int, ThrowingCopyValue> source;
+    source.emplace(1, ThrowingCopyValue(1));
+    source.emplace(2, ThrowingCopyValue(2));
+    source.emplace(3, ThrowingCopyValue(3));
+    const int baseline = ThrowingCopyValue::live_count;
+
+    ThrowingCopyValue::copy_calls = 0;
+    ThrowingCopyValue::throw_after = 1;
+    REQUIRE_THROWS_AS((zeta::flat_hash_map<int, ThrowingCopyValue>(source)),
+                      std::runtime_error);
+    REQUIRE(ThrowingCopyValue::live_count == baseline);
 }
 
 TEST_CASE("flat_hash_map: move", "[map]") {

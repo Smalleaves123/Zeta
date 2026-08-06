@@ -465,7 +465,9 @@ public:
     }
 
     // ── Swap ──────────────────────────────────────────────────────
-    void swap(raw_hash_set& other) noexcept {
+    void swap(raw_hash_set& other) noexcept(
+        std::is_nothrow_swappable_v<Hash> &&
+        std::is_nothrow_swappable_v<KeyEq>) {
         using std::swap;
         swap(ctrl_,     other.ctrl_);
         swap(slots_,    other.slots_);
@@ -474,7 +476,10 @@ public:
         swap(hash_,     other.hash_);
         swap(eq_,       other.eq_);
     }
-    friend void swap(raw_hash_set& a, raw_hash_set& b) noexcept { a.swap(b); }
+    friend void swap(raw_hash_set& a, raw_hash_set& b)
+        noexcept(noexcept(a.swap(b))) {
+        a.swap(b);
+    }
 
     // ── Equality ──────────────────────────────────────────────────
     bool operator==(const raw_hash_set& other) const {
@@ -620,16 +625,22 @@ private:
 
     void copy_from(const raw_hash_set& other) {
         if (other.capacity_ == 0) return;
-        rehash_impl(other.capacity_);
-        for (size_t i = 0; i < other.capacity_; ++i) {
-            if (other.ctrl_[i] != kEmpty && other.ctrl_[i] != kDeleted) {
-                const stored_value_type& src = other.slots_[i];
-                size_t hv = hash_(Policy::get_key(src));
-                size_t pos = prepare_insert(hv);
-                ::new (slots_ + pos) stored_value_type(src);
-                set_ctrl(pos, static_cast<int8_t>(H2(hv)));
-                ++size_;
+        try {
+            rehash_impl(other.capacity_);
+            for (size_t i = 0; i < other.capacity_; ++i) {
+                if (other.ctrl_[i] != kEmpty && other.ctrl_[i] != kDeleted) {
+                    const stored_value_type& src = other.slots_[i];
+                    size_t hv = hash_(Policy::get_key(src));
+                    size_t pos = prepare_insert(hv);
+                    ::new (slots_ + pos) stored_value_type(src);
+                    set_ctrl(pos, static_cast<int8_t>(H2(hv)));
+                    ++size_;
+                }
             }
+        } catch (...) {
+            destroy_slots();
+            reset_layout();
+            throw;
         }
     }
 

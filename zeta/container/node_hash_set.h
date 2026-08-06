@@ -17,6 +17,7 @@
 #include <functional>
 #include <initializer_list>
 #include <memory>
+#include <type_traits>
 #include <utility>
 
 namespace zeta {
@@ -156,8 +157,15 @@ public:
     [[nodiscard]] const_iterator cbegin() const noexcept { return begin(); }
     [[nodiscard]] const_iterator cend() const noexcept { return end(); }
 
-    void swap(node_hash_set& other) noexcept { table_.swap(other.table_); }
-    friend void swap(node_hash_set& a, node_hash_set& b) noexcept { a.swap(b); }
+    void swap(node_hash_set& other) noexcept(
+        std::is_nothrow_swappable_v<Hash> &&
+        std::is_nothrow_swappable_v<KeyEq>) {
+        table_.swap(other.table_);
+    }
+    friend void swap(node_hash_set& a, node_hash_set& b)
+        noexcept(noexcept(a.swap(b))) {
+        a.swap(b);
+    }
 
     bool operator==(const node_hash_set& other) const {
         if (size() != other.size()) return false;
