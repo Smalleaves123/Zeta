@@ -81,6 +81,31 @@ TEST_CASE("btree_map: ordered iteration", "[btree][map]") {
     }
 }
 
+TEST_CASE("btree_map: iterator can modify mapped values", "[btree][map]") {
+    zeta::btree_map<int, int> m;
+    m.insert({1, 10});
+    m.insert({2, 20});
+
+    for (auto& [key, value] : m) {
+        value += key;
+    }
+
+    REQUIRE(m.find(1)->second == 11);
+    REQUIRE(m.find(2)->second == 22);
+}
+
+TEST_CASE("btree_map: decrementing end yields the last element", "[btree][map]") {
+    zeta::btree_map<int, int> m;
+    for (int value = 0; value < 100; ++value) {
+        m.insert({value, value * 10});
+    }
+
+    auto it = m.end();
+    --it;
+    REQUIRE(it->first == 99);
+    REQUIRE(it->second == 990);
+}
+
 TEST_CASE("btree_map: contains", "[btree][map]") {
     zeta::btree_map<int, int> m;
     m.insert({42, 0});

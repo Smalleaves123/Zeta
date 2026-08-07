@@ -20,6 +20,8 @@
 
 #include <cstddef>
 #include <functional>
+#include <iterator>
+#include <optional>
 #include <utility>
 
 namespace zeta {
@@ -36,6 +38,7 @@ class btree_map {
         static const key_type& get_key(const value_type& v) noexcept {
             return v.first;
         }
+        static V& get_mapped(value_type& v) noexcept { return v.second; }
     };
 
     using Tree = container_internal::Btree<Params>;
@@ -46,7 +49,80 @@ public:
     using value_type      = std::pair<const K, V>;
     using size_type       = size_t;
     using key_compare     = Compare;
-    using iterator        = typename Tree::iterator;
+    class iterator {
+        using BaseIterator = typename Tree::iterator;
+
+        struct reference_proxy {
+            const K& first;
+            V& second;
+        };
+
+        friend class btree_map;
+
+    public:
+        using iterator_category = std::bidirectional_iterator_tag;
+        using value_type = std::pair<const K, V>;
+        using difference_type = std::ptrdiff_t;
+        using pointer = reference_proxy*;
+        using reference = reference_proxy&;
+
+        iterator() = default;
+        iterator(const iterator& other) : base_(other.base_) {}
+        iterator& operator=(const iterator& other) {
+            base_ = other.base_;
+            proxy_.reset();
+            return *this;
+        }
+        iterator(iterator&& other) noexcept : base_(std::move(other.base_)) {}
+        iterator& operator=(iterator&& other) noexcept {
+            base_ = std::move(other.base_);
+            proxy_.reset();
+            return *this;
+        }
+
+        reference operator*() const noexcept {
+            proxy_.emplace(reference_proxy{base_->first, base_.mapped_value()});
+            return *proxy_;
+        }
+        pointer operator->() const noexcept { return &operator*(); }
+
+        iterator& operator++() noexcept {
+            ++base_;
+            proxy_.reset();
+            return *this;
+        }
+        iterator operator++(int) noexcept {
+            iterator copy = *this;
+            ++(*this);
+            return copy;
+        }
+        iterator& operator--() noexcept {
+            --base_;
+            proxy_.reset();
+            return *this;
+        }
+        iterator operator--(int) noexcept {
+            iterator copy = *this;
+            --(*this);
+            return copy;
+        }
+
+        friend bool operator==(const iterator& left,
+                               const iterator& right) noexcept {
+            return left.base_ == right.base_;
+        }
+        friend bool operator!=(const iterator& left,
+                               const iterator& right) noexcept {
+            return !(left == right);
+        }
+
+    private:
+        explicit iterator(BaseIterator base) noexcept : base_(std::move(base)) {}
+
+        BaseIterator base_;
+        mutable std::optional<reference_proxy> proxy_;
+    };
+    using const_iterator  = typename Tree::iterator;
 
     // ── Construction ────────────────────────────────────────────────
 
@@ -69,25 +145,28 @@ public:
 
     // ── Lookup ──────────────────────────────────────────────────────
 
-    [[nodiscard]] iterator find(const K& key) const { return tree_.find(key); }
+    [[nodiscard]] iterator find(const K& key) { return iterator(tree_.find(key)); }
+    [[nodiscard]] const_iterator find(const K& key) const { return tree_.find(key); }
     [[nodiscard]] bool contains(const K& key) const { return tree_.contains(key); }
 
     V& operator[](const K& key) {
         auto it = find(key);
         if (it == end()) {
             auto [new_it, _] = insert({key, V{}});
-            return const_cast<V&>(new_it->second);
+            return new_it->second;
         }
-        return const_cast<V&>(it->second);
+        return it->second;
     }
 
     // ── Insert ──────────────────────────────────────────────────────
 
     std::pair<iterator, bool> insert(const value_type& v) {
-        return tree_.insert(v);
+        auto [it, inserted] = tree_.insert(v);
+        return {iterator(std::move(it)), inserted};
     }
     std::pair<iterator, bool> insert(value_type&& v) {
-        return tree_.insert(std::move(v));
+        auto [it, inserted] = tree_.insert(std::move(v));
+        return {iterator(std::move(it)), inserted};
     }
 
     // ── Erase ───────────────────────────────────────────────────────
@@ -97,8 +176,10 @@ public:
 
     // ── Iterators ───────────────────────────────────────────────────
 
-    [[nodiscard]] iterator begin() const noexcept { return tree_.begin(); }
-    [[nodiscard]] iterator end()   const noexcept { return tree_.end(); }
+    [[nodiscard]] iterator begin() noexcept { return iterator(tree_.begin()); }
+    [[nodiscard]] iterator end()   noexcept { return iterator(tree_.end()); }
+    [[nodiscard]] const_iterator begin() const noexcept { return tree_.begin(); }
+    [[nodiscard]] const_iterator end()   const noexcept { return tree_.end(); }
 
 private:
     Tree tree_;

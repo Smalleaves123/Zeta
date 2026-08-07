@@ -36,8 +36,13 @@ public:
         std::size_t worker_count = std::thread::hardware_concurrency()) {
         if (worker_count == 0) worker_count = 1;
         workers_.reserve(worker_count);
-        for (std::size_t index = 0; index < worker_count; ++index) {
-            workers_.emplace_back([this] { WorkerLoop(); });
+        try {
+            for (std::size_t index = 0; index < worker_count; ++index) {
+                workers_.emplace_back([this] { WorkerLoop(); });
+            }
+        } catch (...) {
+            Shutdown();
+            throw;
         }
     }
 

@@ -75,6 +75,14 @@ TEST_CASE("uint128: division", "[uint128][arith]") {
     REQUIRE(a % Uint128(3) == Uint128(1));
 }
 
+TEST_CASE("uint128: division by zero is deterministic", "[uint128][arith]") {
+    Uint128 value(100);
+    REQUIRE(value / Uint128(0) == Uint128(0));
+    REQUIRE(value % Uint128(0) == Uint128(0));
+    value /= Uint128(0);
+    REQUIRE(value == Uint128(0));
+}
+
 TEST_CASE("uint128: bitwise operations", "[uint128][arith]") {
     Uint128 a = Uint128::FromPair(0xF0F0, 0x0F0F);
     Uint128 b = Uint128::FromPair(0xFF00, 0x00FF);
@@ -177,6 +185,14 @@ TEST_CASE("int128: multiplication", "[int128][arith]") {
 TEST_CASE("int128: division", "[int128][arith]") {
     REQUIRE(Int128(100) / Int128(3) == Int128(33));
     REQUIRE(Int128(-100) / Int128(3) == Int128(-33));
+}
+
+TEST_CASE("int128: division by zero is deterministic", "[int128][arith]") {
+    Int128 value(-100);
+    REQUIRE(value / Int128(0) == Int128(0));
+    REQUIRE(value % Int128(0) == Int128(0));
+    value %= Int128(0);
+    REQUIRE(value == Int128(0));
 }
 
 TEST_CASE("int128: negation", "[int128][arith]") {

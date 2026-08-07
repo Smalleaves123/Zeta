@@ -58,9 +58,18 @@ public:
         using pointer    = const value_type*;
         using reference  = const value_type&;
 
-        iterator() noexcept : node_(nullptr), pos_(0) {}
+        iterator() noexcept : node_(nullptr), pos_(0), root_(nullptr) {}
         reference operator*()  const noexcept { return node_->values[pos_]; }
         pointer   operator->() const noexcept { return &node_->values[pos_]; }
+
+        template <typename P = Params>
+        decltype(auto) mapped_value() const noexcept
+            requires requires(value_type& value) {
+                P::get_mapped(value);
+            }
+        {
+            return P::get_mapped(node_->values[pos_]);
+        }
 
         iterator& operator++() noexcept {
             if (!node_) return *this;  // end() → stay end()
@@ -85,7 +94,28 @@ public:
         iterator operator++(int) noexcept { auto t = *this; ++(*this); return t; }
 
         iterator& operator--() noexcept {
-            if (!node_) { return *this; }
+            if (!node_) {
+                Node* child = root_;
+                if (child == nullptr) return *this;
+                while (!child->is_leaf()) child = child->children.back().get();
+                if (!child->values.empty()) {
+                    node_ = child;
+                    pos_ = static_cast<int>(child->values.size()) - 1;
+                    return *this;
+                }
+                while (child != nullptr) {
+                    Node* parent = child->parent;
+                    if (parent == nullptr) return *this;
+                    const int index = index_in_parent(child);
+                    if (index > 0) {
+                        node_ = parent;
+                        pos_ = index - 1;
+                        return *this;
+                    }
+                    child = parent;
+                }
+                return *this;
+            }
             if (!node_->is_leaf()) {
                 // Rightmost leaf of left child.
                 Node* child = node_->children[pos_].get();
@@ -116,7 +146,9 @@ public:
         friend class Btree;
         Node* node_;
         int   pos_;
-        iterator(Node* n, int p) noexcept : node_(n), pos_(p) {}
+        Node* root_;
+        iterator(Node* n, int p, Node* root) noexcept
+            : node_(n), pos_(p), root_(root) {}
     };
 
     // ── Construction ──────────────────────────────────────────────
@@ -156,7 +188,7 @@ public:
         while (node) {
             for (size_t i = 0; i < node->values.size(); ++i) {
                 auto nk = node->key(i);
-                if (!cmp(nk, k) && !cmp(k, nk)) return iterator(node, static_cast<int>(i));
+                if (!cmp(nk, k) && !cmp(k, nk)) return iterator(node, static_cast<int>(i), root_.get());
                 if (cmp(k, nk)) {
                     // Descend into left child.
                     if (!node->is_leaf() && i < node->children.size())
@@ -195,7 +227,7 @@ public:
                 key_compare cmp;
                 for (size_t i = 0; i < node->values.size(); ++i) {
                     if (!cmp(node->key(i), k) && !cmp(k, node->key(i))) {
-                        return {iterator(node, static_cast<int>(i)), false};
+                        return {iterator(node, static_cast<int>(i), root_.get()), false};
                     }
                 }
 
@@ -246,7 +278,7 @@ private:
         for (size_t i = 0; i < node->values.size(); ++i) {
             key_compare cmp;
             if (!cmp(node->key(i), k) && !cmp(k, node->key(i))) {
-                return {iterator(node, static_cast<int>(i)), false};
+                return {iterator(node, static_cast<int>(i), root_.get()), false};
             }
         }
 
@@ -257,9 +289,9 @@ private:
             for (size_t i = 0; i < node->values.size(); ++i) {
                 key_compare cmp;
                 if (!cmp(node->key(i), k) && !cmp(k, node->key(i)))
-                    return {iterator(node, static_cast<int>(i)), true};
+                    return {iterator(node, static_cast<int>(i), root_.get()), true};
             }
-            return {iterator(node, 0), true};  // should not reach
+            return {iterator(node, 0, root_.get()), true};  // should not reach
         }
 
         // Node is full — insert then split in one operation.
@@ -362,10 +394,12 @@ public:
             }
         }
 
-        if (node && !node->values.empty()) return iterator(node, 0);
+        if (node && !node->values.empty()) return iterator(node, 0, root_.get());
         return end();
     }
-    [[nodiscard]] iterator end() const noexcept { return iterator(); }
+    [[nodiscard]] iterator end() const noexcept {
+        return iterator(nullptr, 0, root_.get());
+    }
 
 private:
     std::unique_ptr<Node> root_;

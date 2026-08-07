@@ -39,19 +39,26 @@ public:
     LogMessage(const LogMessage&) = delete;
     LogMessage& operator=(const LogMessage&) = delete;
 
-    ~LogMessage() {
+    ~LogMessage() noexcept {
         if (!log_internal::ShouldLog(severity_)) {
             if (severity_ == log_internal::LogSeverity::FATAL) {
                 std::abort();
             }
             return;
         }
-        std::string msg = stream_.str();
-        if (fields_.empty()) {
-            log_internal::ActiveSink()->Send(severity_, file_, line_, msg);
-        } else {
-            log_internal::ActiveSink()->Send(
-                LogRecordView{severity_, file_, line_, msg, fields_});
+        try {
+            std::string msg = stream_.str();
+            if (fields_.empty()) {
+                log_internal::SendToActiveSink(severity_, file_, line_, msg);
+            } else {
+                log_internal::SendToActiveSink(
+                    LogRecordView{severity_, file_, line_, msg, fields_});
+            }
+        } catch (...) {
+            if (severity_ == log_internal::LogSeverity::FATAL) {
+                std::abort();
+            }
+            return;
         }
         if (severity_ == log_internal::LogSeverity::FATAL) {
             std::abort();

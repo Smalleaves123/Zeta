@@ -8,6 +8,7 @@
 #include <ctime>
 #include <filesystem>
 #include <mutex>
+#include <shared_mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -37,7 +38,7 @@ public:
     LogFormatter& operator=(const LogFormatter&) = delete;
 
     [[nodiscard]] virtual std::string Format(
-        const LogRecordView& record) noexcept {
+        const LogRecordView& record) {
         std::ostringstream out;
         out << '[' << FormatTimestamp() << "] ["
             << SeverityName(record.severity) << "] [tid="
@@ -53,6 +54,7 @@ public:
 };
 
 struct FormatterState {
+    std::shared_mutex mutex;
     LogFormatter default_instance;
     LogFormatter* custom = nullptr;
 };
@@ -61,21 +63,36 @@ struct FormatterState {
     return state;
 }
 
-inline void SetLogFormatter(LogFormatter* formatter) noexcept {
-    FormatterStateInstance().custom = formatter;
+[[nodiscard]] inline LogFormatter* ExchangeLogFormatter(
+    LogFormatter* formatter) {
+    auto& state = FormatterStateInstance();
+    std::unique_lock<std::shared_mutex> lock(state.mutex);
+    LogFormatter* previous = state.custom;
+    state.custom = formatter;
+    return previous;
 }
 
-[[nodiscard]] inline LogFormatter* ActiveFormatter() noexcept {
+inline void SetLogFormatter(LogFormatter* formatter) {
+    (void)ExchangeLogFormatter(formatter);
+}
+
+[[nodiscard]] inline LogFormatter* ActiveFormatter() {
     auto& state = FormatterStateInstance();
+    std::shared_lock<std::shared_mutex> lock(state.mutex);
     return state.custom ? state.custom : &state.default_instance;
+}
+
+[[nodiscard]] inline std::string FormatLogRecord(const LogRecordView& record) {
+    auto& state = FormatterStateInstance();
+    std::shared_lock<std::shared_mutex> lock(state.mutex);
+    LogFormatter* formatter = state.custom ? state.custom : &state.default_instance;
+    return formatter->Format(record);
 }
 
 class ScopedLogFormatter {
 public:
-    explicit ScopedLogFormatter(LogFormatter* formatter) noexcept
-        : previous_(FormatterStateInstance().custom) {
-        SetLogFormatter(formatter);
-    }
+    explicit ScopedLogFormatter(LogFormatter* formatter)
+        : previous_(ExchangeLogFormatter(formatter)) {}
 
     ScopedLogFormatter(const ScopedLogFormatter&) = delete;
     ScopedLogFormatter& operator=(const ScopedLogFormatter&) = delete;
@@ -98,15 +115,15 @@ public:
     LogSink(const LogSink&) = delete;
     LogSink& operator=(const LogSink&) = delete;
 
-    virtual void Send(const LogRecordView& record) noexcept {
-        std::string formatted = ActiveFormatter()->Format(record);
+    virtual void Send(const LogRecordView& record) {
+        std::string formatted = FormatLogRecord(record);
         std::fwrite(formatted.data(), 1, formatted.size(), stderr);
         std::fflush(stderr);
     }
 
     /// Legacy overload retained for sinks implemented before structured fields.
     virtual void Send(LogSeverity severity, const char* file, int line,
-                      std::string_view message) noexcept {
+                      std::string_view message) {
         Send(LogRecordView{severity, file, line, message});
     }
 };
@@ -130,11 +147,11 @@ public:
         }
     }
 
-    void Send(const LogRecordView& record) noexcept override {
+    void Send(const LogRecordView& record) override {
         std::lock_guard<std::mutex> lock(mu_);
         if (file_ == nullptr) return;
 
-        std::string formatted = ActiveFormatter()->Format(record);
+        std::string formatted = FormatLogRecord(record);
         if (max_bytes_ > 0 && current_size_ + formatted.size() > max_bytes_) {
             Rotate();
             if (file_ == nullptr) return;
@@ -226,9 +243,10 @@ inline void SetMinLogSeverity(LogSeverity severity) noexcept {
                static_cast<int>(MinLogSeverity());
 }
 
-/// Shared mutable pointer + default sink.  Both SetLogSink and ActiveSink
-/// read/write this same state.
+/// Shared mutable pointer + default sink.  Logging holds a shared lock while
+/// dispatching, so a scoped/custom sink cannot be replaced mid-dispatch.
 struct SinkState {
+    std::shared_mutex mutex;
     LogSink  default_instance;
     LogSink* custom = nullptr;
 };
@@ -237,21 +255,43 @@ struct SinkState {
     return state;
 }
 
-[[nodiscard]] inline LogSink* ActiveSink() noexcept {
+[[nodiscard]] inline LogSink* ActiveSink() {
     auto& state = SinkStateInstance();
+    std::shared_lock<std::shared_mutex> lock(state.mutex);
     return state.custom ? state.custom : &state.default_instance;
 }
 
-inline void SetLogSink(LogSink* sink) noexcept {
-    SinkStateInstance().custom = sink;
+[[nodiscard]] inline LogSink* ExchangeLogSink(LogSink* sink) {
+    auto& state = SinkStateInstance();
+    std::unique_lock<std::shared_mutex> lock(state.mutex);
+    LogSink* previous = state.custom;
+    state.custom = sink;
+    return previous;
+}
+
+inline void SetLogSink(LogSink* sink) {
+    (void)ExchangeLogSink(sink);
+}
+
+inline void SendToActiveSink(const LogRecordView& record) {
+    auto& state = SinkStateInstance();
+    std::shared_lock<std::shared_mutex> lock(state.mutex);
+    LogSink* sink = state.custom ? state.custom : &state.default_instance;
+    sink->Send(record);
+}
+
+inline void SendToActiveSink(LogSeverity severity, const char* file, int line,
+                             std::string_view message) {
+    auto& state = SinkStateInstance();
+    std::shared_lock<std::shared_mutex> lock(state.mutex);
+    LogSink* sink = state.custom ? state.custom : &state.default_instance;
+    sink->Send(severity, file, line, message);
 }
 
 class ScopedLogSink {
 public:
-    explicit ScopedLogSink(LogSink* sink) noexcept
-        : previous_(SinkStateInstance().custom) {
-        SetLogSink(sink);
-    }
+    explicit ScopedLogSink(LogSink* sink)
+        : previous_(ExchangeLogSink(sink)) {}
 
     ScopedLogSink(const ScopedLogSink&) = delete;
     ScopedLogSink& operator=(const ScopedLogSink&) = delete;

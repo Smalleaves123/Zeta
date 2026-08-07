@@ -3,9 +3,12 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <atomic>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
+#include <thread>
 
 // A simple test sink that captures output.
 class TestSink : public zeta::log_internal::LogSink {
@@ -34,6 +37,22 @@ public:
             << '|' << record.message << '\n';
         return out.str();
     }
+};
+
+class ThrowingSink : public zeta::log_internal::LogSink {
+public:
+    void Send(const zeta::LogRecordView&) override {
+        throw std::runtime_error("sink failed");
+    }
+};
+
+class ConcurrentSink : public zeta::log_internal::LogSink {
+public:
+    void Send(const zeta::LogRecordView&) noexcept override {
+        count.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    std::atomic<int> count{0};
 };
 
 TEST_CASE("log: severity names", "[log]") {
@@ -216,4 +235,38 @@ TEST_CASE("log: conditional macro only emits when enabled", "[log]") {
     ZETA_LOG_IF(INFO, true) << "kept";
     REQUIRE(sink.call_count == 1);
     REQUIRE(sink.last_message == "kept");
+}
+
+TEST_CASE("log: failures during destruction are contained", "[log][exception]") {
+    ThrowingSink sink;
+    zeta::log_internal::ScopedLogSink scoped_sink(&sink);
+
+    zeta::LogMessage(zeta::log_internal::LogSeverity::ERROR, "test.cpp", 1)
+        << "must not terminate";
+    SUCCEED();
+}
+
+TEST_CASE("log: sink replacement is safe while logging", "[log][concurrency]") {
+    ConcurrentSink first;
+    ConcurrentSink second;
+    zeta::log_internal::SetLogSink(&first);
+
+    constexpr int kMessages = 1'000;
+    std::thread writer([] {
+        for (int index = 0; index < kMessages; ++index) {
+            ZETA_LOG(INFO) << "message";
+        }
+    });
+    std::thread reconfigurer([&] {
+        for (int index = 0; index < kMessages; ++index) {
+            zeta::log_internal::SetLogSink(index % 2 == 0 ? &second : &first);
+        }
+    });
+
+    writer.join();
+    reconfigurer.join();
+    zeta::log_internal::SetLogSink(nullptr);
+
+    REQUIRE(first.count.load(std::memory_order_relaxed) +
+            second.count.load(std::memory_order_relaxed) == kMessages);
 }
