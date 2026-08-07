@@ -102,8 +102,8 @@ public:
         if (this != &other) { clear(); for (auto& v : other) insert(v); }
         return *this;
     }
-    node_hash_set(node_hash_set&&) noexcept = default;
-    node_hash_set& operator=(node_hash_set&&) noexcept = default;
+    node_hash_set(node_hash_set&&) = default;
+    node_hash_set& operator=(node_hash_set&&) = default;
 
     // ── Capacity ────────────────────────────────────────────────────
 

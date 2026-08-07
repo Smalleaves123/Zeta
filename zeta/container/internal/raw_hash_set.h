@@ -275,19 +275,23 @@ public:
         return *this;
     }
 
-    raw_hash_set(raw_hash_set&& other) noexcept
+    raw_hash_set(raw_hash_set&& other) noexcept(
+        std::is_nothrow_move_constructible_v<Hash> &&
+        std::is_nothrow_move_constructible_v<KeyEq>)
         : ctrl_(other.ctrl_), slots_(other.slots_),
           size_(other.size_), capacity_(other.capacity_),
           hash_(std::move(other.hash_)), eq_(std::move(other.eq_)) {
         other.reset_layout();
     }
-    raw_hash_set& operator=(raw_hash_set&& other) noexcept {
+    raw_hash_set& operator=(raw_hash_set&& other) noexcept(
+        std::is_nothrow_move_assignable_v<Hash> &&
+        std::is_nothrow_move_assignable_v<KeyEq>) {
         if (this != &other) {
             destroy_slots();
-            ctrl_ = other.ctrl_;  slots_ = other.slots_;
-            size_ = other.size_;  capacity_ = other.capacity_;
             hash_ = std::move(other.hash_);
             eq_   = std::move(other.eq_);
+            ctrl_ = other.ctrl_;  slots_ = other.slots_;
+            size_ = other.size_;  capacity_ = other.capacity_;
             other.reset_layout();
         }
         return *this;
@@ -547,7 +551,7 @@ private:
                 slots_[i].~stored_value_type();
         ::operator delete(slots_);
         ::operator delete(ctrl_);
-        slots_ = nullptr; ctrl_ = nullptr;
+        reset_layout();
     }
 
     static size_t next_power_of_2(size_t n) noexcept {

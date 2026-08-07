@@ -574,29 +574,37 @@ public:
             Executor* executor() const noexcept override { return nullptr; }
 
             void Run(StatusOr<T> source) override {
-                if (!source.ok()) {
-                    (void)next_promise_.SetError(std::move(source).status());
-                    return;
-                }
+                try {
+                    if (!source.ok()) {
+                        (void)next_promise_.SetError(std::move(source).status());
+                        return;
+                    }
 
-                if constexpr (std::is_void_v<T>) {
-                    if constexpr (detail::IsStatusOrV<RawResult>) {
-                        (void)next_promise_.SetResult(InvokeCallable(fn_, std::move(source)));
-                    } else if constexpr (std::is_void_v<RawResult>) {
-                        InvokeCallable(fn_, std::move(source));
-                        (void)next_promise_.SetValue();
+                    if constexpr (std::is_void_v<T>) {
+                        if constexpr (detail::IsStatusOrV<RawResult>) {
+                            (void)next_promise_.SetResult(
+                                InvokeCallable(fn_, std::move(source)));
+                        } else if constexpr (std::is_void_v<RawResult>) {
+                            InvokeCallable(fn_, std::move(source));
+                            (void)next_promise_.SetValue();
+                        } else {
+                            (void)next_promise_.SetValue(
+                                InvokeCallable(fn_, std::move(source)));
+                        }
                     } else {
-                        (void)next_promise_.SetValue(InvokeCallable(fn_, std::move(source)));
+                        if constexpr (detail::IsStatusOrV<RawResult>) {
+                            (void)next_promise_.SetResult(
+                                InvokeCallable(fn_, std::move(source)));
+                        } else if constexpr (std::is_void_v<RawResult>) {
+                            InvokeCallable(fn_, std::move(source));
+                            (void)next_promise_.SetValue();
+                        } else {
+                            (void)next_promise_.SetValue(
+                                InvokeCallable(fn_, std::move(source)));
+                        }
                     }
-                } else {
-                    if constexpr (detail::IsStatusOrV<RawResult>) {
-                        (void)next_promise_.SetResult(InvokeCallable(fn_, std::move(source)));
-                    } else if constexpr (std::is_void_v<RawResult>) {
-                        InvokeCallable(fn_, std::move(source));
-                        (void)next_promise_.SetValue();
-                    } else {
-                        (void)next_promise_.SetValue(InvokeCallable(fn_, std::move(source)));
-                    }
+                } catch (...) {
+                    (void)next_promise_.SetError(InternalError("callback failed"));
                 }
             }
 
@@ -664,15 +672,19 @@ public:
             Executor* executor() const noexcept override { return nullptr; }
 
             void Run(StatusOr<T> source) override {
-                if constexpr (detail::IsStatusOrV<RawResult>) {
-                    (void)next_promise_.SetResult(
-                        std::invoke(fn_, std::move(source)));
-                } else if constexpr (std::is_void_v<RawResult>) {
-                    std::invoke(fn_, std::move(source));
-                    (void)next_promise_.SetValue();
-                } else {
-                    (void)next_promise_.SetValue(
-                        std::invoke(fn_, std::move(source)));
+                try {
+                    if constexpr (detail::IsStatusOrV<RawResult>) {
+                        (void)next_promise_.SetResult(
+                            std::invoke(fn_, std::move(source)));
+                    } else if constexpr (std::is_void_v<RawResult>) {
+                        std::invoke(fn_, std::move(source));
+                        (void)next_promise_.SetValue();
+                    } else {
+                        (void)next_promise_.SetValue(
+                            std::invoke(fn_, std::move(source)));
+                    }
+                } catch (...) {
+                    (void)next_promise_.SetError(InternalError("callback failed"));
                 }
             }
 
@@ -844,29 +856,37 @@ public:
             Executor* executor() const noexcept override { return executor_; }
 
             void Run(StatusOr<T> source) override {
-                if (!source.ok()) {
-                    (void)next_promise_.SetError(std::move(source).status());
-                    return;
-                }
+                try {
+                    if (!source.ok()) {
+                        (void)next_promise_.SetError(std::move(source).status());
+                        return;
+                    }
 
-                if constexpr (std::is_void_v<T>) {
-                    if constexpr (detail::IsStatusOrV<RawResult>) {
-                        (void)next_promise_.SetResult(InvokeCallable(fn_, std::move(source)));
-                    } else if constexpr (std::is_void_v<RawResult>) {
-                        InvokeCallable(fn_, std::move(source));
-                        (void)next_promise_.SetValue();
+                    if constexpr (std::is_void_v<T>) {
+                        if constexpr (detail::IsStatusOrV<RawResult>) {
+                            (void)next_promise_.SetResult(
+                                InvokeCallable(fn_, std::move(source)));
+                        } else if constexpr (std::is_void_v<RawResult>) {
+                            InvokeCallable(fn_, std::move(source));
+                            (void)next_promise_.SetValue();
+                        } else {
+                            (void)next_promise_.SetValue(
+                                InvokeCallable(fn_, std::move(source)));
+                        }
                     } else {
-                        (void)next_promise_.SetValue(InvokeCallable(fn_, std::move(source)));
+                        if constexpr (detail::IsStatusOrV<RawResult>) {
+                            (void)next_promise_.SetResult(
+                                InvokeCallable(fn_, std::move(source)));
+                        } else if constexpr (std::is_void_v<RawResult>) {
+                            InvokeCallable(fn_, std::move(source));
+                            (void)next_promise_.SetValue();
+                        } else {
+                            (void)next_promise_.SetValue(
+                                InvokeCallable(fn_, std::move(source)));
+                        }
                     }
-                } else {
-                    if constexpr (detail::IsStatusOrV<RawResult>) {
-                        (void)next_promise_.SetResult(InvokeCallable(fn_, std::move(source)));
-                    } else if constexpr (std::is_void_v<RawResult>) {
-                        InvokeCallable(fn_, std::move(source));
-                        (void)next_promise_.SetValue();
-                    } else {
-                        (void)next_promise_.SetValue(InvokeCallable(fn_, std::move(source)));
-                    }
+                } catch (...) {
+                    (void)next_promise_.SetError(InternalError("callback failed"));
                 }
             }
 
@@ -936,15 +956,19 @@ public:
             Executor* executor() const noexcept override { return executor_; }
 
             void Run(StatusOr<T> source) override {
-                if constexpr (detail::IsStatusOrV<RawResult>) {
-                    (void)next_promise_.SetResult(
-                        std::invoke(fn_, std::move(source)));
-                } else if constexpr (std::is_void_v<RawResult>) {
-                    std::invoke(fn_, std::move(source));
-                    (void)next_promise_.SetValue();
-                } else {
-                    (void)next_promise_.SetValue(
-                        std::invoke(fn_, std::move(source)));
+                try {
+                    if constexpr (detail::IsStatusOrV<RawResult>) {
+                        (void)next_promise_.SetResult(
+                            std::invoke(fn_, std::move(source)));
+                    } else if constexpr (std::is_void_v<RawResult>) {
+                        std::invoke(fn_, std::move(source));
+                        (void)next_promise_.SetValue();
+                    } else {
+                        (void)next_promise_.SetValue(
+                            std::invoke(fn_, std::move(source)));
+                    }
+                } catch (...) {
+                    (void)next_promise_.SetError(InternalError("callback failed"));
                 }
             }
 

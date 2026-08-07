@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <stdexcept>
 #include <thread>
 
 TEST_CASE("CancellationToken: registrations run once and can be reset",
@@ -57,6 +58,20 @@ TEST_CASE("Future: continuation falls back when executor rejects work",
     auto result = std::move(next).Get();
     REQUIRE(result.ok());
     REQUIRE(result.value() == 42);
+}
+
+TEST_CASE("Future: continuation exceptions become downstream errors",
+          "[futures][executor][exception]") {
+    zeta::ThreadPoolExecutor executor(1);
+    auto [promise, future] = zeta::makePromiseContract<int>();
+    auto next = std::move(future).Via(executor).Then([](int) -> int {
+        throw std::runtime_error("continuation failed");
+    });
+
+    REQUIRE(promise.SetValue(1).ok());
+    auto result = std::move(next).Get();
+    REQUIRE_FALSE(result.ok());
+    REQUIRE(result.status().code() == zeta::StatusCode::kInternal);
 }
 
 TEST_CASE("TaskGroup: cancels and joins cooperative tasks",

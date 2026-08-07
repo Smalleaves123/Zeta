@@ -376,6 +376,22 @@ struct RehashThrowingHash {
     }
 };
 
+struct ThrowingMoveHash {
+    ThrowingMoveHash() = default;
+    ThrowingMoveHash(const ThrowingMoveHash&) = default;
+    ThrowingMoveHash& operator=(const ThrowingMoveHash&) = default;
+    ThrowingMoveHash(ThrowingMoveHash&&) {
+        throw std::runtime_error("hash move");
+    }
+    ThrowingMoveHash& operator=(ThrowingMoveHash&&) {
+        throw std::runtime_error("hash move assignment");
+    }
+
+    size_t operator()(int value) const noexcept {
+        return std::hash<int>{}(value);
+    }
+};
+
 TEST_CASE("flat_hash_set: collision-heavy keys", "[set][stress]") {
     zeta::flat_hash_set<CollisionKey, CollisionHash> s;
     constexpr int N = 500;
@@ -417,4 +433,12 @@ TEST_CASE("flat_hash_set: rehash rolls back on move throw", "[set][exception]") 
     for (const auto& item : s) values.push_back(item.value);
     std::sort(values.begin(), values.end());
     REQUIRE(values == std::vector<int>{1, 2, 3});
+}
+
+TEST_CASE("flat_hash_set: propagates throwing hash moves", "[set][exception]") {
+    using Set = zeta::flat_hash_set<int, ThrowingMoveHash>;
+    static_assert(!noexcept(Set(std::declval<Set&&>())));
+
+    Set source;
+    REQUIRE_THROWS_AS(Set(std::move(source)), std::runtime_error);
 }

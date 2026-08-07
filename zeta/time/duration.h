@@ -22,6 +22,7 @@
 #include <chrono>
 #include <cstdint>
 #include <limits>
+#include <numeric>
 #include <string>
 #include <type_traits>
 
@@ -75,10 +76,12 @@ public:
     template <typename Rep, typename Period>
     [[nodiscard]] static constexpr Duration FromChrono(
         std::chrono::duration<Rep, Period> d) noexcept {
-        return Duration(
-            static_cast<int64_t>(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(d).count()),
-            0);
+        if constexpr (std::is_integral_v<Rep> &&
+                      sizeof(Rep) <= sizeof(uint64_t)) {
+            return from_chrono_integral(d);
+        } else {
+            return from_chrono_floating(d);
+        }
     }
 
     template <typename ToDuration = std::chrono::nanoseconds>
@@ -149,6 +152,10 @@ public:
         // Keep division by zero deterministic and non-throwing: a scalar
         // divide by zero leaves the duration unchanged.
         if (divisor == 0) return *this;
+        if (ns_ == std::numeric_limits<int64_t>::min() && divisor == -1) {
+            *this = Infinite();
+            return *this;
+        }
         ns_ /= divisor;
         return *this;
     }
@@ -174,12 +181,18 @@ public:
     [[nodiscard]] friend constexpr int64_t operator/(Duration a, Duration b) noexcept {
         // A zero duration has no meaningful ratio; return the neutral value.
         if (b.ns_ == 0) return 0;
+        if (a.ns_ == std::numeric_limits<int64_t>::min() && b.ns_ == -1) {
+            return std::numeric_limits<int64_t>::max();
+        }
         return a.ns_ / b.ns_;
     }
     /// Remainder of two durations.
     [[nodiscard]] friend constexpr Duration operator%(Duration a, Duration b) noexcept {
         // A zero duration has no meaningful remainder; return zero.
         if (b.ns_ == 0) return Duration();
+        if (a.ns_ == std::numeric_limits<int64_t>::min() && b.ns_ == -1) {
+            return Duration();
+        }
         return Duration(a.ns_ % b.ns_, 0);
     }
 
@@ -223,6 +236,77 @@ public:
     }
 
 private:
+    template <typename Rep, typename Period>
+    [[nodiscard]] static constexpr Duration from_chrono_integral(
+        std::chrono::duration<Rep, Period> d) noexcept {
+        const Rep count = d.count();
+        bool negative = false;
+        uint64_t magnitude = 0;
+        if constexpr (std::is_signed_v<Rep>) {
+            if (count < 0) {
+                negative = true;
+                magnitude = static_cast<uint64_t>(-(count + 1)) + 1;
+            } else {
+                magnitude = static_cast<uint64_t>(count);
+            }
+        } else {
+            magnitude = static_cast<uint64_t>(count);
+        }
+
+        uint64_t numerator = static_cast<uint64_t>(Period::num);
+        uint64_t denominator = static_cast<uint64_t>(Period::den);
+        uint64_t scale = 1'000'000'000ULL;
+        const auto reduce = [](uint64_t& lhs, uint64_t& rhs) constexpr {
+            const uint64_t divisor = std::gcd(lhs, rhs);
+            lhs /= divisor;
+            rhs /= divisor;
+        };
+        reduce(magnitude, denominator);
+        reduce(numerator, denominator);
+        reduce(scale, denominator);
+
+        using Wide = unsigned __int128;
+        const Wide bound = negative ? (Wide{1} << 63)
+                                    : static_cast<Wide>(
+                                          std::numeric_limits<int64_t>::max());
+        const Wide limit = bound * static_cast<Wide>(denominator);
+        Wide product = static_cast<Wide>(magnitude);
+        if (product > limit / numerator) {
+            return negative ? NegativeInfinite() : Infinite();
+        }
+        product *= numerator;
+        if (product > limit / scale) {
+            return negative ? NegativeInfinite() : Infinite();
+        }
+        product *= scale;
+
+        const Wide nanoseconds = product / denominator;
+        if (negative) {
+            if (nanoseconds == (Wide{1} << 63)) return NegativeInfinite();
+            return Duration(-static_cast<int64_t>(nanoseconds), 0);
+        }
+        return Duration(static_cast<int64_t>(nanoseconds), 0);
+    }
+
+    template <typename Rep, typename Period>
+    [[nodiscard]] static constexpr Duration from_chrono_floating(
+        std::chrono::duration<Rep, Period> d) noexcept {
+        const long double nanoseconds =
+            static_cast<long double>(d.count()) *
+            static_cast<long double>(Period::num) * 1'000'000'000.0L /
+            static_cast<long double>(Period::den);
+        if (!(nanoseconds == nanoseconds)) return Duration();
+        if (nanoseconds >=
+            static_cast<long double>(std::numeric_limits<int64_t>::max())) {
+            return Infinite();
+        }
+        if (nanoseconds <=
+            static_cast<long double>(std::numeric_limits<int64_t>::min())) {
+            return NegativeInfinite();
+        }
+        return Duration(static_cast<int64_t>(nanoseconds), 0);
+    }
+
     // Saturating signed multiply by a scale factor.
     // If scale is negative, negate both arguments so the overflow check
     // always operates with a positive scale (the product is the same).

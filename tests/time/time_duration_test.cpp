@@ -192,6 +192,25 @@ TEST_CASE("duration: multiply saturates", "[duration][extreme]") {
     REQUIRE(nd == Duration::NegativeInfinite());
 }
 
+TEST_CASE("duration: division handles the signed minimum", "[duration][extreme]") {
+    const Duration minimum = Duration::NegativeInfinite();
+
+    REQUIRE(minimum / -1 == Duration::Infinite());
+    REQUIRE(minimum / Duration::Nanoseconds(-1) ==
+            std::numeric_limits<int64_t>::max());
+    REQUIRE((minimum % Duration::Nanoseconds(-1)).IsZero());
+}
+
+TEST_CASE("duration: FromChrono saturates extreme integral values",
+          "[duration][chrono][extreme]") {
+    using Seconds = std::chrono::duration<int64_t>;
+
+    REQUIRE(Duration::FromChrono(Seconds(std::numeric_limits<int64_t>::max())) ==
+            Duration::Infinite());
+    REQUIRE(Duration::FromChrono(Seconds(std::numeric_limits<int64_t>::min())) ==
+            Duration::NegativeInfinite());
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Constexpr
 // ═══════════════════════════════════════════════════════════════════════

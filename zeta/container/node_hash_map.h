@@ -110,8 +110,8 @@ public:
         if (this != &other) { clear(); for (auto& kv : other) insert(kv); }
         return *this;
     }
-    node_hash_map(node_hash_map&&) noexcept = default;
-    node_hash_map& operator=(node_hash_map&&) noexcept = default;
+    node_hash_map(node_hash_map&&) = default;
+    node_hash_map& operator=(node_hash_map&&) = default;
 
     // ── Capacity ────────────────────────────────────────────────────
 

@@ -58,8 +58,8 @@ public:
 
     flat_hash_map(const flat_hash_map&) = default;
     flat_hash_map& operator=(const flat_hash_map&) = default;
-    flat_hash_map(flat_hash_map&&) noexcept = default;
-    flat_hash_map& operator=(flat_hash_map&&) noexcept = default;
+    flat_hash_map(flat_hash_map&&) = default;
+    flat_hash_map& operator=(flat_hash_map&&) = default;
 
     // ── Capacity ──────────────────────────────────────────────────
     size_t size()      const noexcept { return table_.size(); }

@@ -128,11 +128,15 @@ public:
     Btree(const Btree& other)
         requires std::copy_constructible<value_type> {
         root_ = std::make_unique<Node>();
-        for (auto& v : other) insert(value_type(v));
+        copy_from_node(other.root_.get());
     }
     Btree& operator=(const Btree& other)
         requires std::copy_constructible<value_type> {
-        if (this != &other) { clear(); for (auto& v : other) insert(value_type(v)); }
+        if (this != &other) {
+            Btree copy(other);
+            root_ = std::move(copy.root_);
+            size_ = copy.size_;
+        }
         return *this;
     }
     Btree(Btree&&) noexcept = default;
@@ -180,6 +184,55 @@ public:
     // ── Insert ────────────────────────────────────────────────────
 
     std::pair<iterator, bool> insert(value_type v) {
+        if constexpr (std::copy_constructible<value_type>) {
+            auto k = Params::get_key(v);
+            Node* node = root_.get();
+            while (!node->is_leaf()) {
+                node = node->children[child_pos(node, k)].get();
+            }
+
+            if (node->is_full()) {
+                key_compare cmp;
+                for (size_t i = 0; i < node->values.size(); ++i) {
+                    if (!cmp(node->key(i), k) && !cmp(k, node->key(i))) {
+                        return {iterator(node, static_cast<int>(i)), false};
+                    }
+                }
+
+                // A split may modify multiple nodes.  Perform it in a staged
+                // copy so a throwing value operation leaves this tree intact.
+                Btree staged(*this);
+                auto [unused, inserted] = staged.insert_unchecked(std::move(v));
+                (void)unused;
+                if (!inserted) return {find(k), false};
+                root_ = std::move(staged.root_);
+                size_ = staged.size_;
+                return {find(k), true};
+            }
+        }
+
+        return insert_unchecked(std::move(v));
+    }
+
+private:
+    void copy_from_node(const Node* node)
+        requires std::copy_constructible<value_type> {
+        if (node == nullptr) return;
+        if (node->is_leaf()) {
+            for (const auto& value : node->values) {
+                insert_unchecked(value_type(value));
+            }
+            return;
+        }
+
+        for (size_t i = 0; i < node->values.size(); ++i) {
+            copy_from_node(node->children[i].get());
+            insert_unchecked(value_type(node->values[i]));
+        }
+        copy_from_node(node->children.back().get());
+    }
+
+    std::pair<iterator, bool> insert_unchecked(value_type v) {
         auto k = Params::get_key(v);
         Node* node = root_.get();
 
@@ -217,6 +270,8 @@ public:
         ++size_;
         return {find(k), true};
     }
+
+public:
 
     // ── Erase ─────────────────────────────────────────────────────
 

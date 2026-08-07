@@ -3,7 +3,32 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <stdexcept>
 #include <string>
+
+namespace {
+
+struct ThrowingMoveAssignment {
+    static inline bool throw_on_move_assignment = false;
+
+    int value = 0;
+
+    ThrowingMoveAssignment() = default;
+    explicit ThrowingMoveAssignment(int v) : value(v) {}
+    ThrowingMoveAssignment(const ThrowingMoveAssignment&) = default;
+    ThrowingMoveAssignment& operator=(const ThrowingMoveAssignment&) = default;
+    ThrowingMoveAssignment(ThrowingMoveAssignment&& other) noexcept
+        : value(other.value) {}
+    ThrowingMoveAssignment& operator=(ThrowingMoveAssignment&& other) {
+        if (throw_on_move_assignment) {
+            throw std::runtime_error("move assignment");
+        }
+        value = other.value;
+        return *this;
+    }
+};
+
+} // namespace
 
 // ═══════════════════════════════════════════════════════════════════════
 // btree_map
@@ -81,6 +106,28 @@ TEST_CASE("btree_map: large insert", "[btree][map]") {
     for (int i = 0; i < N; ++i) {
         REQUIRE(m.contains(i));
     }
+}
+
+TEST_CASE("btree_map: failed split leaves the map unchanged",
+          "[btree][map][exception]") {
+    zeta::btree_map<int, ThrowingMoveAssignment> m;
+    for (int i = 0; i < 64; ++i) {
+        REQUIRE(m.insert({i, ThrowingMoveAssignment(i)}).second);
+    }
+
+    ThrowingMoveAssignment::throw_on_move_assignment = true;
+    REQUIRE_THROWS_AS(
+        m.insert({100, ThrowingMoveAssignment(100)}), std::runtime_error);
+    ThrowingMoveAssignment::throw_on_move_assignment = false;
+
+    REQUIRE(m.size() == 64);
+    REQUIRE_FALSE(m.contains(100));
+    int count = 0;
+    for (const auto& item : m) {
+        REQUIRE(item.first == count);
+        ++count;
+    }
+    REQUIRE(count == 64);
 }
 
 TEST_CASE("btree_map: erase from internal node keeps ordering intact", "[btree][map][erase]") {

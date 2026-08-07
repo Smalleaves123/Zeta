@@ -3,7 +3,22 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <atomic>
+#include <stdexcept>
 #include <thread>
+
+namespace {
+
+struct ThrowingCopyValue {
+    ThrowingCopyValue() = default;
+    ThrowingCopyValue(const ThrowingCopyValue&) {
+        throw std::runtime_error("copy failed");
+    }
+    ThrowingCopyValue& operator=(const ThrowingCopyValue&) = delete;
+    ThrowingCopyValue(ThrowingCopyValue&&) noexcept = default;
+    ThrowingCopyValue& operator=(ThrowingCopyValue&&) noexcept = default;
+};
+
+} // namespace
 
 TEST_CASE("LockFreeQueue: provides bounded non-blocking operations",
           "[sync][lock_free_queue]") {
@@ -57,5 +72,14 @@ TEST_CASE("LockFreeQueue: transfers values between producer and consumer",
     REQUIRE(consumed == kValueCount);
     REQUIRE(sum == static_cast<long long>(kValueCount) *
                          (kValueCount + 1) / 2);
+    REQUIRE(queue.Empty());
+}
+
+TEST_CASE("LockFreeQueue: propagates throwing lvalue copies",
+          "[sync][lock_free_queue][exception]") {
+    zeta::LockFreeQueue<ThrowingCopyValue> queue(2);
+    ThrowingCopyValue value;
+
+    REQUIRE_THROWS_AS(queue.TryPush(value), std::runtime_error);
     REQUIRE(queue.Empty());
 }

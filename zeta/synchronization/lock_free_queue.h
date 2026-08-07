@@ -56,7 +56,7 @@ public:
         while (TryPop().has_value()) {}
     }
 
-    [[nodiscard]] bool TryPush(T value) noexcept {
+    [[nodiscard]] bool TryPush(T value) {
         std::size_t position = enqueue_position_.load(std::memory_order_relaxed);
         Cell* cell = nullptr;
         for (;;) {
