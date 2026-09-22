@@ -42,7 +42,16 @@ void CallOnce(OnceFlag& flag, F&& fn) noexcept(noexcept(fn())) {
     std::lock_guard<std::mutex> lock(flag.mu_);
     if (flag.state_.load(std::memory_order_relaxed) == 0) {
         flag.state_.store(1, std::memory_order_relaxed);
-        fn();
+        try {
+            fn();
+        } catch (...) {
+            // This implementation intentionally keeps the historical
+            // "attempt once" contract. Publish the terminal state even when
+            // initialization throws so other callers never observe a
+            // permanently in-progress flag.
+            flag.state_.store(2, std::memory_order_release);
+            throw;
+        }
         flag.state_.store(2, std::memory_order_release);
     }
 }
