@@ -265,6 +265,7 @@ private:
         reduce(numerator, denominator);
         reduce(scale, denominator);
 
+#if defined(__SIZEOF_INT128__)
         using Wide = unsigned __int128;
         const Wide bound = negative ? (Wide{1} << 63)
                                     : static_cast<Wide>(
@@ -286,6 +287,25 @@ private:
             return Duration(-static_cast<int64_t>(nanoseconds), 0);
         }
         return Duration(static_cast<int64_t>(nanoseconds), 0);
+#else
+        // MSVC and other compilers without a native 128-bit integer use a
+        // floating-point fallback. Values near the saturation boundary are
+        // deliberately clamped conservatively.
+        const long double scaled =
+            static_cast<long double>(magnitude) *
+            static_cast<long double>(Period::num) * 1'000'000'000.0L /
+            static_cast<long double>(Period::den);
+        const long double positive_limit =
+            static_cast<long double>(std::numeric_limits<int64_t>::max());
+        const long double negative_limit =
+            static_cast<long double>(std::numeric_limits<int64_t>::max()) + 1.0L;
+        if ((!negative && scaled >= positive_limit) ||
+            (negative && scaled >= negative_limit)) {
+            return negative ? NegativeInfinite() : Infinite();
+        }
+        const auto truncated = static_cast<int64_t>(scaled);
+        return negative ? Duration(-truncated, 0) : Duration(truncated, 0);
+#endif
     }
 
     template <typename Rep, typename Period>

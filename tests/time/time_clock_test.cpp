@@ -3,6 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <atomic>
+#include <limits>
 #include <thread>
 
 using namespace zeta;
@@ -35,6 +36,14 @@ TEST_CASE("clock: ToDuration is reversible", "[clock][monotonic]") {
     auto now = zeta::Clock::Now();
     Duration d = zeta::Clock::ToDuration(now);
     REQUIRE(d.ToRaw() == now);
+}
+
+TEST_CASE("clock: Between saturates integer overflow", "[clock][extreme]") {
+    const auto max = std::numeric_limits<zeta::Clock::time_point>::max();
+    const auto min = std::numeric_limits<zeta::Clock::time_point>::min();
+
+    REQUIRE(zeta::Clock::Between(-1, max) == zeta::Duration::Infinite());
+    REQUIRE(zeta::Clock::Between(1, min) == zeta::Duration::NegativeInfinite());
 }
 
 TEST_CASE("clock: sleep between gives measurable duration", "[clock][monotonic]") {

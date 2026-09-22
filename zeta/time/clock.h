@@ -19,6 +19,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <limits>
 #include <thread>
 
 #include "zeta/time/duration.h"
@@ -60,6 +61,14 @@ public:
     /// Compute the Duration between two time points: `b - a`.
     [[nodiscard]] static Duration Between(time_point a,
                                           time_point b) noexcept {
+        constexpr auto kMax = std::numeric_limits<time_point>::max();
+        constexpr auto kMin = std::numeric_limits<time_point>::min();
+        if (a < 0 && b > kMax + a) {
+            return Duration::Infinite();
+        }
+        if (a > 0 && b < kMin + a) {
+            return Duration::NegativeInfinite();
+        }
         return Duration::FromRaw(b - a);
     }
 

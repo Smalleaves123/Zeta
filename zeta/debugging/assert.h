@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <atomic>
 
 #include "zeta/base/macros.h"
 
@@ -17,21 +18,22 @@ using AssertionHandler = void (*)(const char* expression,
                                   int line,
                                   const char* message) noexcept;
 
-inline AssertionHandler& AssertionHandlerStorage() noexcept {
-    static AssertionHandler handler = nullptr;
+inline std::atomic<AssertionHandler>& AssertionHandlerStorage() noexcept {
+    static std::atomic<AssertionHandler> handler{nullptr};
     return handler;
 }
 
 /// Installs a process-local handler for failed `ZETA_CHECK` expressions.
 inline void SetAssertionHandler(AssertionHandler handler) noexcept {
-    AssertionHandlerStorage() = handler;
+    AssertionHandlerStorage().store(handler, std::memory_order_release);
 }
 
 [[noreturn]] inline void AssertionFailure(const char* expression,
                                            const char* file,
                                            int line,
                                            const char* message = nullptr) noexcept {
-    if (auto handler = AssertionHandlerStorage(); handler != nullptr) {
+    if (auto handler = AssertionHandlerStorage().load(std::memory_order_acquire);
+        handler != nullptr) {
         handler(expression, file, line, message);
     }
 
