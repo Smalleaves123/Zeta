@@ -7,6 +7,9 @@ target_link_libraries(zeta_example_status_time PRIVATE zeta::status zeta::string
 add_executable(zeta_example_service_context service_context.cpp)
 target_link_libraries(zeta_example_service_context PRIVATE zeta::service)
 
+add_executable(zeta_example_service_async_context service_async_context.cpp)
+target_link_libraries(zeta_example_service_async_context PRIVATE zeta::service)
+
 add_executable(zeta_example_time_control time_control.cpp)
 target_link_libraries(zeta_example_time_control PRIVATE zeta::time)
 

@@ -98,6 +98,15 @@ thread pools and inline execution can be reused outside Future chains. Use
 These abstractions must not depend on sockets, HTTP metadata, RPC framing, or
 service request context.
 
+Request-context propagation belongs at the `service` boundary. Include
+`service/context_executor.h` when an asynchronous service handler needs its
+request ID, deadline, cancellation token, trace context, or metadata to follow
+work onto another thread. `ContextExecutor` wraps an existing borrowed
+executor, and `RequestContextScope` restores the worker's previous context
+after every task (including when the task throws). Keep both the wrapped
+executor and the `ContextExecutor` alive until every `Future::Via()`
+continuation has completed.
+
 Small, ownership-oriented data structures belong in `container`: use
 `SmallMap` for short maps, `IntrusiveList` when nodes are owned elsewhere, and
 the LRU/LFU caches for bounded in-process reuse rather than introducing global

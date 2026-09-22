@@ -1,12 +1,16 @@
+#include "zeta/service/context_executor.h"
 #include "zeta/service/propagation.h"
 #include "zeta/service/log_adapter.h"
+#include "zeta/futures/future.h"
 #include "zeta/log/formatters.h"
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstddef>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <string>
 
 TEST_CASE("RequestContext: defaults to an unbounded active request", "[service]") {
@@ -166,4 +170,96 @@ TEST_CASE("RequestContext: enriches structured logs through an adapter",
             std::string::npos);
 
     std::filesystem::remove(path);
+}
+
+TEST_CASE("RequestContextScope: installs and restores nested contexts",
+          "[service][context]") {
+    REQUIRE(zeta::CurrentRequestContext() == nullptr);
+
+    zeta::RequestContext outer;
+    REQUIRE(outer.SetRequestId("outer").ok());
+    zeta::RequestContext inner;
+    REQUIRE(inner.SetRequestId("inner").ok());
+
+    {
+        zeta::RequestContextScope outer_scope(outer);
+        REQUIRE(zeta::CurrentRequestContext() == &outer);
+        {
+            zeta::RequestContextScope inner_scope(inner);
+            REQUIRE(zeta::CurrentRequestContext() == &inner);
+        }
+        REQUIRE(zeta::CurrentRequestContext() == &outer);
+    }
+    REQUIRE(zeta::CurrentRequestContext() == nullptr);
+}
+
+TEST_CASE("ContextExecutor: propagates context and cleans up worker scope",
+          "[service][context][concurrency]") {
+    zeta::RequestContext context = zeta::RequestContext::WithTimeout(
+        zeta::Duration::Seconds(5));
+    REQUIRE(context.SetRequestId("request-42").ok());
+    REQUIRE(context.SetTraceId("trace-7").ok());
+    REQUIRE(context.SetMetadata("tenant", "acme").ok());
+
+    zeta::ThreadPoolExecutor pool(1);
+    zeta::ContextExecutor executor(pool, context);
+
+    std::promise<std::string> observed;
+    auto observed_result = observed.get_future();
+    executor.Add([&observed] {
+        const auto* current = zeta::CurrentRequestContext();
+        if (current == nullptr) {
+            observed.set_value("missing");
+            return;
+        }
+        observed.set_value(
+            std::string(current->request_id()) + ":" +
+            std::string(current->trace_id()) + ":" +
+            std::string(current->GetMetadata("tenant").value_or("")));
+    });
+
+    REQUIRE(observed_result.wait_for(std::chrono::seconds(1)) ==
+            std::future_status::ready);
+    REQUIRE(observed_result.get() == "request-42:trace-7:acme");
+
+    std::promise<bool> cleaned;
+    auto cleaned_result = cleaned.get_future();
+    pool.Add([&cleaned] {
+        cleaned.set_value(zeta::CurrentRequestContext() == nullptr);
+    });
+    REQUIRE(cleaned_result.wait_for(std::chrono::seconds(1)) ==
+            std::future_status::ready);
+    REQUIRE(cleaned_result.get());
+}
+
+TEST_CASE("ContextExecutor: propagates context through Future continuation",
+          "[service][context][futures]") {
+    zeta::CancellationSource cancellation;
+    zeta::RequestContext context = zeta::RequestContext::WithTimeout(
+        zeta::Duration::Seconds(5), cancellation.GetToken());
+    REQUIRE(context.SetRequestId("request-42").ok());
+    REQUIRE(context.SetTraceId("trace-7").ok());
+
+    zeta::ThreadPoolExecutor pool(1);
+    zeta::ContextExecutor executor(pool, context);
+    auto [promise, future] = zeta::makePromiseContract<int>();
+    std::promise<bool> observed;
+    auto observed_result = observed.get_future();
+
+    auto next = std::move(future).Via(executor).Then([&observed](int value) {
+        const auto* current = zeta::CurrentRequestContext();
+        observed.set_value(
+            current != nullptr && current->request_id() == "request-42" &&
+            current->trace_id() == "trace-7" && !current->IsCancelled() &&
+            !current->IsExpired());
+        return value + 1;
+    });
+
+    REQUIRE(promise.SetValue(41).ok());
+    const auto output = std::move(next).Get();
+    REQUIRE(output.ok());
+    REQUIRE(*output == 42);
+    REQUIRE(observed_result.wait_for(std::chrono::seconds(1)) ==
+            std::future_status::ready);
+    REQUIRE(observed_result.get());
 }
