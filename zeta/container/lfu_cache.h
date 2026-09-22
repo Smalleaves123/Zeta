@@ -55,6 +55,10 @@ public:
             it->second.position = bucket.begin();
             min_frequency_ = 1;
         } catch (...) {
+            auto bucket_it = buckets_.find(1);
+            if (bucket_it != buckets_.end() && bucket_it->second.empty()) {
+                buckets_.erase(bucket_it);
+            }
             entries_.erase(it);
             throw;
         }
@@ -100,24 +104,41 @@ public:
 private:
     void Touch(typename Map::iterator it) {
         const std::size_t old_frequency = it->second.frequency;
-        auto bucket_it = buckets_.find(old_frequency);
-        bucket_it->second.erase(it->second.position);
-        if (bucket_it->second.empty()) {
-            buckets_.erase(bucket_it);
-            if (min_frequency_ == old_frequency &&
-                old_frequency != std::numeric_limits<std::size_t>::max()) {
-                ++min_frequency_;
-            }
-        }
-
         const std::size_t new_frequency =
             old_frequency == std::numeric_limits<std::size_t>::max()
                 ? old_frequency
                 : old_frequency + 1;
+
+        // Insert the new list node first. If allocation fails, the entry is
+        // still linked into its old bucket and the cache remains valid.
+        auto [new_bucket_it, inserted] = buckets_.try_emplace(new_frequency);
+        try {
+            new_bucket_it->second.push_front(&it->first);
+        } catch (...) {
+            if (inserted && new_bucket_it->second.empty()) {
+                buckets_.erase(new_bucket_it);
+            }
+            throw;
+        }
+
+        const auto new_position = new_bucket_it->second.begin();
+        const auto old_position = it->second.position;
+        if (old_frequency == new_frequency) {
+            new_bucket_it->second.erase(old_position);
+        } else {
+            auto old_bucket_it = buckets_.find(old_frequency);
+            old_bucket_it->second.erase(old_position);
+            if (old_bucket_it->second.empty()) {
+                buckets_.erase(old_bucket_it);
+            }
+        }
+
         it->second.frequency = new_frequency;
-        auto& bucket = buckets_[new_frequency];
-        bucket.push_front(&it->first);
-        it->second.position = bucket.begin();
+        it->second.position = new_position;
+        if (old_frequency == min_frequency_ && old_frequency != new_frequency &&
+            buckets_.find(old_frequency) == buckets_.end()) {
+            RecomputeMinFrequency();
+        }
         if (new_frequency < min_frequency_) min_frequency_ = new_frequency;
     }
 
