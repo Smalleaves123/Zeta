@@ -50,6 +50,17 @@ std::pair<Promise<T>, Future<T>> makePromiseContract();
 
 namespace detail {
 
+template <typename Clock>
+[[nodiscard]] inline typename Clock::time_point SaturatingDeadline(
+    typename Clock::time_point now,
+    typename Clock::duration timeout) noexcept {
+    if (timeout <= Clock::duration::zero()) return now;
+    const auto maximum = Clock::time_point::max();
+    const auto remaining = maximum - now;
+    if (timeout >= remaining) return maximum;
+    return now + timeout;
+}
+
 template <typename T>
 struct IsStatusOr : std::false_type {};
 
@@ -532,28 +543,23 @@ public:
         std::unique_lock<std::mutex> lock(state->mutex);
         const auto timeout_duration =
             std::chrono::duration_cast<std::chrono::steady_clock::duration>(timeout);
-        const auto deadline = std::chrono::steady_clock::now() + timeout_duration;
+        const auto deadline = detail::SaturatingDeadline<std::chrono::steady_clock>(
+            std::chrono::steady_clock::now(), timeout_duration);
         auto cancelled = std::make_shared<std::atomic<bool>>(false);
         auto registration = token.Register([state, cancelled] {
             cancelled->store(true, std::memory_order_release);
             state->cv.notify_all();
         });
 
-        while (!state->ready &&
-               !cancelled->load(std::memory_order_acquire)) {
-            if (timeout_duration <= std::chrono::steady_clock::duration::zero() ||
-                std::chrono::steady_clock::now() >= deadline) {
-                return DeadlineExceededError("future wait timed out");
-            }
-
-            state->cv.wait_until(lock, deadline, [&] {
-                return state->ready ||
-                       cancelled->load(std::memory_order_acquire);
-            });
-        }
+        state->cv.wait_until(lock, deadline, [&] {
+            return state->ready || cancelled->load(std::memory_order_acquire);
+        });
 
         if (!state->ready && cancelled->load(std::memory_order_acquire)) {
             return CancelledError("future wait cancelled");
+        }
+        if (!state->ready) {
+            return DeadlineExceededError("future wait timed out");
         }
 
         return detail::ConsumeFutureResult(lock, state);
@@ -817,27 +823,30 @@ public:
             return detail::MakeInvalidFutureResult<T>();
         }
 
-        std::unique_lock<std::mutex> lock(state_->mutex);
+        const auto state = state_;
+        std::unique_lock<std::mutex> lock(state->mutex);
         const auto timeout_duration =
             std::chrono::duration_cast<std::chrono::steady_clock::duration>(timeout);
-        const auto poll_interval = std::chrono::duration_cast<
-            std::chrono::steady_clock::duration>(std::chrono::milliseconds(1));
-        const auto deadline = std::chrono::steady_clock::now() + timeout_duration;
+        const auto deadline = detail::SaturatingDeadline<std::chrono::steady_clock>(
+            std::chrono::steady_clock::now(), timeout_duration);
+        auto cancelled = std::make_shared<std::atomic<bool>>(false);
+        auto registration = token.Register([state, cancelled] {
+            cancelled->store(true, std::memory_order_release);
+            state->cv.notify_all();
+        });
 
-        while (!state_->ready) {
-            if (token.IsCancellationRequested()) {
-                return CancelledError("future wait cancelled");
-            }
-            if (timeout_duration <= std::chrono::steady_clock::duration::zero() ||
-                std::chrono::steady_clock::now() >= deadline) {
-                return DeadlineExceededError("future wait timed out");
-            }
+        state->cv.wait_until(lock, deadline, [&] {
+            return state->ready || cancelled->load(std::memory_order_acquire);
+        });
 
-            const auto remaining = deadline - std::chrono::steady_clock::now();
-            state_->cv.wait_for(lock, std::min(remaining, poll_interval));
+        if (!state->ready && cancelled->load(std::memory_order_acquire)) {
+            return CancelledError("future wait cancelled");
+        }
+        if (!state->ready) {
+            return DeadlineExceededError("future wait timed out");
         }
 
-        return detail::ConsumeFutureResult(lock, state_);
+        return detail::ConsumeFutureResult(lock, state);
     }
 
     template <typename F>

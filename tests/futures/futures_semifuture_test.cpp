@@ -118,6 +118,29 @@ TEST_CASE("SemiFuture: ToFuture keeps the same shared state", "[futures][semifut
     REQUIRE(result.value() == 7);
 }
 
+TEST_CASE("SemiFuture: GetFor wakes promptly when cancellation is requested",
+          "[futures][semifuture][cancel]") {
+    auto [promise, future] = zeta::makePromiseContract<int>();
+    zeta::InlineExecutor executor;
+    auto semi = std::move(future).Via(executor);
+    zeta::CancellationSource source;
+
+    std::thread canceller([&source] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        REQUIRE(source.RequestCancellation());
+    });
+
+    const auto start = std::chrono::steady_clock::now();
+    auto result = std::move(semi).GetFor(
+        std::chrono::seconds(5), source.GetToken());
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+    canceller.join();
+
+    REQUIRE_FALSE(result.ok());
+    REQUIRE(result.status().code() == zeta::StatusCode::kCancelled);
+    REQUIRE(elapsed < std::chrono::seconds(1));
+}
+
 TEST_CASE("SemiFuture: collectAll accepts semi futures", "[futures][semifuture][collect_all]") {
     BackgroundExecutor executor;
     auto [p1, f1] = zeta::makePromiseContract<int>();

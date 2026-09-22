@@ -89,6 +89,21 @@ TEST_CASE("Future: GetFor returns deadline exceeded", "[futures][timeout]") {
     REQUIRE(result.status().code() == zeta::StatusCode::kDeadlineExceeded);
 }
 
+TEST_CASE("Future: GetFor handles a saturated timeout", "[futures][timeout]") {
+    auto [promise, future] = zeta::makePromiseContract<int>();
+    std::thread producer([p = std::move(promise)]() mutable {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        (void)p.SetValue(7);
+    });
+
+    auto result = std::move(future).GetFor(
+        std::chrono::steady_clock::duration::max());
+    producer.join();
+
+    REQUIRE(result.ok());
+    REQUIRE(result.value() == 7);
+}
+
 TEST_CASE("Future: GetFor observes cooperative cancellation", "[futures][cancel]") {
     auto [promise, future] = zeta::makePromiseContract<int>();
     zeta::CancellationSource source;
