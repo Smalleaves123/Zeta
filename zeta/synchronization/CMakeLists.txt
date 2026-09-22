@@ -8,3 +8,4 @@ zeta_module(synchronization HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/once.h
     ${CMAKE_CURRENT_SOURCE_DIR}/synchronized.h
 )
+target_link_libraries(zeta_synchronization INTERFACE Threads::Threads)

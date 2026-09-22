@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(zeta VERSION 0.13.0 LANGUAGES CXX)
 
+find_package(Threads REQUIRED)
+
 option(ZETA_ENABLE_WARNINGS_AS_ERRORS
        "Treat compiler warnings as errors for Zeta builds"
        OFF)

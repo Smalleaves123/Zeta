@@ -21,9 +21,9 @@
 #include "zeta/status/status.h"
 
 #include <concepts>
-#include <cassert>
 #include <cstddef>
 #include <cstring>
+#include <exception>
 #include <functional>
 #include <new>
 #include <string>
@@ -148,10 +148,12 @@ public:
     void value_or() const noexcept { }
 
     /// @pre ok() == true
-    void value() const { assert(ok()); }
+    void value() const {
+        if (!ok()) std::terminate();
+    }
 
     /// @pre ok() == true
-    void operator*() const { assert(ok()); }
+    void operator*() const { value(); }
 };
 
 // ── StatusOr<T> ──────────────────────────────────────────────────────
@@ -474,13 +476,13 @@ public:
     /// Returns a reference to the held value.
     /// @pre ok() == true
     [[nodiscard]] T& value() & {
-        assert(ok());
+        if (!ok()) std::terminate();
         return *value_ptr();
     }
 
     /// @pre ok() == true
     [[nodiscard]] const T& value() const& {
-        assert(ok());
+        if (!ok()) std::terminate();
         return *value_ptr();
     }
 
@@ -489,13 +491,13 @@ public:
     /// call ok() or value() again.  The destructor still runs and
     /// properly cleans up the moved-from value.
     [[nodiscard]] T&& value() && {
-        assert(ok());
+        if (!ok()) std::terminate();
         return std::move(*value_ptr());
     }
 
     /// @pre ok() == true
     [[nodiscard]] const T&& value() const&& {
-        assert(ok());
+        if (!ok()) std::terminate();
         return std::move(*value_ptr());
     }
 
@@ -508,13 +510,13 @@ public:
 
     /// @pre ok() == true
     [[nodiscard]] T* operator->() {
-        assert(ok());
+        if (!ok()) std::terminate();
         return value_ptr();
     }
 
     /// @pre ok() == true
     [[nodiscard]] const T* operator->() const {
-        assert(ok());
+        if (!ok()) std::terminate();
         return value_ptr();
     }
 };

@@ -22,6 +22,7 @@
 #include "zeta/futures/executor.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <condition_variable>
@@ -527,27 +528,35 @@ public:
             return detail::MakeInvalidFutureResult<T>();
         }
 
-        std::unique_lock<std::mutex> lock(state_->mutex);
+        const auto state = state_;
+        std::unique_lock<std::mutex> lock(state->mutex);
         const auto timeout_duration =
             std::chrono::duration_cast<std::chrono::steady_clock::duration>(timeout);
-        const auto poll_interval = std::chrono::duration_cast<
-            std::chrono::steady_clock::duration>(std::chrono::milliseconds(1));
         const auto deadline = std::chrono::steady_clock::now() + timeout_duration;
+        auto cancelled = std::make_shared<std::atomic<bool>>(false);
+        auto registration = token.Register([state, cancelled] {
+            cancelled->store(true, std::memory_order_release);
+            state->cv.notify_all();
+        });
 
-        while (!state_->ready) {
-            if (token.IsCancellationRequested()) {
-                return CancelledError("future wait cancelled");
-            }
+        while (!state->ready &&
+               !cancelled->load(std::memory_order_acquire)) {
             if (timeout_duration <= std::chrono::steady_clock::duration::zero() ||
                 std::chrono::steady_clock::now() >= deadline) {
                 return DeadlineExceededError("future wait timed out");
             }
 
-            const auto remaining = deadline - std::chrono::steady_clock::now();
-            state_->cv.wait_for(lock, std::min(remaining, poll_interval));
+            state->cv.wait_until(lock, deadline, [&] {
+                return state->ready ||
+                       cancelled->load(std::memory_order_acquire);
+            });
         }
 
-        return detail::ConsumeFutureResult(lock, state_);
+        if (!state->ready && cancelled->load(std::memory_order_acquire)) {
+            return CancelledError("future wait cancelled");
+        }
+
+        return detail::ConsumeFutureResult(lock, state);
     }
 
     template <typename F>

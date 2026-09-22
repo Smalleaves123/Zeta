@@ -52,12 +52,14 @@ public:
     LockFreeQueue(LockFreeQueue&&) = delete;
     LockFreeQueue& operator=(LockFreeQueue&&) = delete;
 
+    /// Destruction must not race with producers or consumers.
     ~LockFreeQueue() {
         while (TryPop().has_value()) {}
     }
 
     [[nodiscard]] bool TryPush(T value) {
-        std::size_t position = enqueue_position_.load(std::memory_order_relaxed);
+        std::size_t position =
+            enqueue_position_.value.load(std::memory_order_relaxed);
         Cell* cell = nullptr;
         for (;;) {
             cell = &cells_[position & mask_];
@@ -66,7 +68,7 @@ public:
             const auto difference = static_cast<std::intptr_t>(
                 sequence - position);
             if (difference == 0) {
-                if (enqueue_position_.compare_exchange_weak(
+                if (enqueue_position_.value.compare_exchange_weak(
                         position, position + 1,
                         std::memory_order_relaxed,
                         std::memory_order_relaxed)) {
@@ -75,7 +77,8 @@ public:
             } else if (difference < 0) {
                 return false;
             } else {
-                position = enqueue_position_.load(std::memory_order_relaxed);
+                position =
+                    enqueue_position_.value.load(std::memory_order_relaxed);
             }
         }
 
@@ -85,7 +88,8 @@ public:
     }
 
     [[nodiscard]] std::optional<T> TryPop() noexcept {
-        std::size_t position = dequeue_position_.load(std::memory_order_relaxed);
+        std::size_t position =
+            dequeue_position_.value.load(std::memory_order_relaxed);
         Cell* cell = nullptr;
         for (;;) {
             cell = &cells_[position & mask_];
@@ -94,7 +98,7 @@ public:
             const auto difference = static_cast<std::intptr_t>(
                 sequence - (position + 1));
             if (difference == 0) {
-                if (dequeue_position_.compare_exchange_weak(
+                if (dequeue_position_.value.compare_exchange_weak(
                         position, position + 1,
                         std::memory_order_relaxed,
                         std::memory_order_relaxed)) {
@@ -103,7 +107,8 @@ public:
             } else if (difference < 0) {
                 return std::nullopt;
             } else {
-                position = dequeue_position_.load(std::memory_order_relaxed);
+                position =
+                    dequeue_position_.value.load(std::memory_order_relaxed);
             }
         }
 
@@ -119,11 +124,12 @@ public:
         return capacity_;
     }
 
+    /// Returns an approximate size when producers or consumers are active.
     [[nodiscard]] std::size_t Size() const noexcept {
         const std::size_t enqueued =
-            enqueue_position_.load(std::memory_order_acquire);
+            enqueue_position_.value.load(std::memory_order_acquire);
         const std::size_t dequeued =
-            dequeue_position_.load(std::memory_order_acquire);
+            dequeue_position_.value.load(std::memory_order_acquire);
         const std::size_t size = enqueued - dequeued;
         return size > capacity_ ? capacity_ : size;
     }
@@ -131,6 +137,11 @@ public:
     [[nodiscard]] bool Empty() const noexcept { return Size() == 0; }
 
 private:
+    // Keep the producer and consumer counters on separate cache lines.
+    struct alignas(64) PaddedPosition {
+        std::atomic<std::size_t> value{0};
+    };
+
     static T* Data(Cell& cell) noexcept {
         return std::launder(reinterpret_cast<T*>(cell.storage));
     }
@@ -138,8 +149,8 @@ private:
     std::unique_ptr<Cell[]> cells_;
     std::size_t capacity_ = 0;
     std::size_t mask_ = 0;
-    std::atomic<std::size_t> enqueue_position_{0};
-    std::atomic<std::size_t> dequeue_position_{0};
+    PaddedPosition enqueue_position_;
+    PaddedPosition dequeue_position_;
 };
 
 } // namespace zeta

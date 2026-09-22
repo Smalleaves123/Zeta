@@ -30,12 +30,12 @@
 // ── SIMD backend selection ─────────────────────────────────────────
 #if defined(__ARM_NEON) || defined(__ARM_NEON__) || defined(__aarch64__)
   #include <arm_neon.h>
-  #define ZETA_NEON 1
+  #define ZETA_CONTAINER_INTERNAL_NEON 1
 #elif defined(__SSE2__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 2)
   #include <emmintrin.h>
-  #define ZETA_SSE2 1
+  #define ZETA_CONTAINER_INTERNAL_SSE2 1
 #else
-  #define ZETA_SCALAR 1
+  #define ZETA_CONTAINER_INTERNAL_SCALAR 1
 #endif
 
 namespace zeta {
@@ -53,12 +53,14 @@ constexpr size_t kWidthMinus1 = 15;
 
 // ── H2 ─────────────────────────────────────────────────────────────
 inline uint8_t H2(size_t hash) noexcept {
-    return static_cast<uint8_t>((hash >> 57) & 0x7F);
+    constexpr int kHashBits = std::numeric_limits<size_t>::digits;
+    constexpr int kH2Shift = kHashBits > 7 ? kHashBits - 7 : 0;
+    return static_cast<uint8_t>((hash >> kH2Shift) & 0x7F);
 }
 
 // ── SIMD bitmask extraction ────────────────────────────────────────
 inline uint32_t MatchBitmask(const int8_t* ctrl, uint8_t h2) noexcept {
-#if ZETA_NEON
+#if ZETA_CONTAINER_INTERNAL_NEON
     uint8x16_t c = vld1q_u8(reinterpret_cast<const uint8_t*>(ctrl));
     uint8x16_t match = vceqq_u8(c, vdupq_n_u8(h2));
     static const uint8_t bits[16] = {1,2,4,8,16,32,64,128,1,2,4,8,16,32,64,128};
@@ -67,7 +69,7 @@ inline uint32_t MatchBitmask(const int8_t* ctrl, uint8_t h2) noexcept {
     uint8x8_t p2 = vpadd_u8(p1, p1);
     uint8x8_t p3 = vpadd_u8(p2, p2);
     return vget_lane_u16(vreinterpret_u16_u8(p3), 0);
-#elif ZETA_SSE2
+#elif ZETA_CONTAINER_INTERNAL_SSE2
     __m128i ctrl_vec = _mm_loadu_si128(reinterpret_cast<const __m128i*>(ctrl));
     __m128i h2_vec   = _mm_set1_epi8(static_cast<char>(h2));
     return static_cast<uint32_t>(
@@ -81,7 +83,7 @@ inline uint32_t MatchBitmask(const int8_t* ctrl, uint8_t h2) noexcept {
 }
 
 inline uint32_t MatchEmptyOrDeleted(const int8_t* ctrl) noexcept {
-#if ZETA_NEON
+#if ZETA_CONTAINER_INTERNAL_NEON
     uint8x16_t c = vld1q_u8(reinterpret_cast<const uint8_t*>(ctrl));
     uint8x16_t m = vorrq_u8(
         vceqq_u8(c, vdupq_n_u8(static_cast<uint8_t>(kEmpty))),
@@ -92,7 +94,7 @@ inline uint32_t MatchEmptyOrDeleted(const int8_t* ctrl) noexcept {
     uint8x8_t p2 = vpadd_u8(p1, p1);
     uint8x8_t p3 = vpadd_u8(p2, p2);
     return vget_lane_u16(vreinterpret_u16_u8(p3), 0);
-#elif ZETA_SSE2
+#elif ZETA_CONTAINER_INTERNAL_SSE2
     __m128i c = _mm_loadu_si128(reinterpret_cast<const __m128i*>(ctrl));
     return static_cast<uint32_t>(_mm_movemask_epi8(_mm_or_si128(
         _mm_cmpeq_epi8(c, _mm_set1_epi8(static_cast<char>(kEmpty))),
@@ -106,7 +108,7 @@ inline uint32_t MatchEmptyOrDeleted(const int8_t* ctrl) noexcept {
 }
 
 inline uint32_t MatchEmpty(const int8_t* ctrl) noexcept {
-#if ZETA_NEON
+#if ZETA_CONTAINER_INTERNAL_NEON
     uint8x16_t c = vld1q_u8(reinterpret_cast<const uint8_t*>(ctrl));
     uint8x16_t m = vceqq_u8(c, vdupq_n_u8(static_cast<uint8_t>(kEmpty)));
     static const uint8_t bits[16] = {1,2,4,8,16,32,64,128,1,2,4,8,16,32,64,128};
@@ -115,7 +117,7 @@ inline uint32_t MatchEmpty(const int8_t* ctrl) noexcept {
     uint8x8_t p2 = vpadd_u8(p1, p1);
     uint8x8_t p3 = vpadd_u8(p2, p2);
     return vget_lane_u16(vreinterpret_u16_u8(p3), 0);
-#elif ZETA_SSE2
+#elif ZETA_CONTAINER_INTERNAL_SSE2
     __m128i c = _mm_loadu_si128(reinterpret_cast<const __m128i*>(ctrl));
     return static_cast<uint32_t>(_mm_movemask_epi8(
         _mm_cmpeq_epi8(c, _mm_set1_epi8(static_cast<char>(kEmpty)))));
@@ -596,7 +598,10 @@ private:
                         stored_value_type* src = old_slots + i;
                         size_t hv = hash_(Policy::get_key(*src));
                         size_t pos = prepare_insert(hv);
-                        ::new (slots_ + pos) stored_value_type(std::move(*src));
+                        // Copy when possible so a throwing rehash preserves the
+                        // old table. Move-only values receive the basic guarantee.
+                        ::new (slots_ + pos)
+                            stored_value_type(std::move_if_noexcept(*src));
                         set_ctrl(pos, static_cast<int8_t>(H2(hv)));
                         ++size_;
                     }
@@ -724,5 +729,9 @@ private:
 
 } // namespace container_internal
 } // namespace zeta
+
+#undef ZETA_CONTAINER_INTERNAL_NEON
+#undef ZETA_CONTAINER_INTERNAL_SSE2
+#undef ZETA_CONTAINER_INTERNAL_SCALAR
 
 #endif // ZETA_CONTAINER_INTERNAL_RAW_HASH_SET_H

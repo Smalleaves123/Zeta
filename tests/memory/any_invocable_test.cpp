@@ -3,6 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -22,6 +23,25 @@ struct MoveOnlyFunctor {
 
     std::unique_ptr<int> value;
 };
+
+struct ThrowingFunctor {
+    static bool should_throw;
+
+    explicit ThrowingFunctor(int value) : value_(value) {}
+
+    ThrowingFunctor(ThrowingFunctor&& other) {
+        if (should_throw) throw std::runtime_error("construction failed");
+        value_ = other.value_;
+    }
+
+    ThrowingFunctor(const ThrowingFunctor&) = default;
+
+    int operator()() const { return value_; }
+
+    int value_ = 0;
+};
+
+bool ThrowingFunctor::should_throw = false;
 
 } // namespace
 
@@ -90,4 +110,15 @@ TEST_CASE("AnyInvocable: large callable spills beyond inline storage", "[any_inv
 
     zeta::AnyInvocable<int(int)> fn = LargeCallable{};
     REQUIRE(fn(41) == 42);
+}
+
+TEST_CASE("AnyInvocable: assignment preserves old callable on construction failure",
+          "[any_invocable][exception]") {
+    zeta::AnyInvocable<int()> fn = [] { return 42; };
+    ThrowingFunctor::should_throw = true;
+
+    REQUIRE_THROWS_AS(fn = ThrowingFunctor(7), std::runtime_error);
+    REQUIRE(fn() == 42);
+
+    ThrowingFunctor::should_throw = false;
 }

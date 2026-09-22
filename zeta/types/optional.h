@@ -16,7 +16,7 @@
 ///       .Map([](int v) { return v + 1; })
 ///       .OrElse([] { return 0; });
 
-#include <cassert>
+#include <exception>
 #include <functional>
 #include <optional>
 #include <type_traits>
@@ -54,22 +54,22 @@ public:
     [[nodiscard]] explicit operator bool() const noexcept { return has_value(); }
 
     [[nodiscard]] T& value() & {
-        assert(has_value());
+        if (!has_value()) std::terminate();
         return *value_;
     }
 
     [[nodiscard]] const T& value() const& {
-        assert(has_value());
+        if (!has_value()) std::terminate();
         return *value_;
     }
 
     [[nodiscard]] T&& value() && {
-        assert(has_value());
+        if (!has_value()) std::terminate();
         return std::move(*value_);
     }
 
     [[nodiscard]] const T&& value() const&& {
-        assert(has_value());
+        if (!has_value()) std::terminate();
         return std::move(*value_);
     }
 
@@ -79,12 +79,12 @@ public:
     [[nodiscard]] const T&& operator*() const&& { return std::move(*this).value(); }
 
     [[nodiscard]] T* operator->() {
-        assert(has_value());
+        if (!has_value()) std::terminate();
         return &*value_;
     }
 
     [[nodiscard]] const T* operator->() const {
-        assert(has_value());
+        if (!has_value()) std::terminate();
         return &*value_;
     }
 

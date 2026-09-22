@@ -4,8 +4,8 @@
 /// @file   memory/any_invocable.h
 /// @brief  Move-only owning callable wrapper with small-buffer optimization.
 
-#include <cassert>
 #include <cstddef>
+#include <exception>
 #include <functional>
 #include <memory>
 #include <new>
@@ -176,8 +176,9 @@ public:
         requires (!std::is_same_v<std::remove_cvref_t<F>, AnyInvocable>) &&
                  std::is_invocable_r_v<Ret, std::remove_reference_t<F>&, Args...>
     AnyInvocable& operator=(F&& f) {
+        AnyInvocable replacement(std::forward<F>(f));
         Reset();
-        Emplace<std::decay_t<F>>(std::forward<F>(f));
+        MoveFrom(std::move(replacement));
         return *this;
     }
 
@@ -188,7 +189,7 @@ public:
     explicit operator bool() const noexcept { return invoke_ != nullptr; }
 
     Ret operator()(Args... args) const {
-        assert(invoke_ != nullptr);
+        if (invoke_ == nullptr) std::terminate();
         return invoke_(StoragePtr(), std::forward<Args>(args)...);
     }
 
@@ -288,8 +289,9 @@ public:
         requires (!std::is_same_v<std::remove_cvref_t<F>, AnyInvocable>) &&
                  std::is_nothrow_invocable_r_v<Ret, std::remove_reference_t<F>&, Args...>
     AnyInvocable& operator=(F&& f) {
+        AnyInvocable replacement(std::forward<F>(f));
         Reset();
-        Emplace<std::decay_t<F>>(std::forward<F>(f));
+        MoveFrom(std::move(replacement));
         return *this;
     }
 
@@ -300,7 +302,7 @@ public:
     explicit operator bool() const noexcept { return invoke_ != nullptr; }
 
     Ret operator()(Args... args) const noexcept {
-        assert(invoke_ != nullptr);
+        if (invoke_ == nullptr) std::terminate();
         return invoke_(StoragePtr(), std::forward<Args>(args)...);
     }
 

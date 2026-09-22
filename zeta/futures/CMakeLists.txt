@@ -8,3 +8,4 @@ zeta_module(futures
     ${CMAKE_CURRENT_SOURCE_DIR}/future.h
     ${CMAKE_CURRENT_SOURCE_DIR}/task_group.h
 )
+target_link_libraries(zeta_futures INTERFACE Threads::Threads)

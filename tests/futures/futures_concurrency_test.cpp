@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <exception>
 #include <stdexcept>
 #include <thread>
 
@@ -43,6 +44,27 @@ TEST_CASE("ThreadPoolExecutor: runs submitted tasks", "[futures][executor]") {
     REQUIRE(completed.load(std::memory_order_relaxed) == 8);
     REQUIRE(executor.IsShutdown());
     REQUIRE_THROWS(executor.Add([] {}));
+}
+
+TEST_CASE("ThreadPoolExecutor: reports task exceptions to handler",
+          "[futures][executor][exception]") {
+    std::atomic<int> errors{0};
+    std::atomic<bool> saw_runtime_error{false};
+    zeta::ThreadPoolExecutor executor(
+        1, [&errors, &saw_runtime_error](std::exception_ptr error) {
+            if (error == nullptr) return;
+            try {
+                std::rethrow_exception(error);
+            } catch (const std::runtime_error&) {
+                saw_runtime_error.store(true, std::memory_order_relaxed);
+                errors.fetch_add(1, std::memory_order_relaxed);
+            }
+        });
+
+    executor.Add([] { throw std::runtime_error("task failed"); });
+    executor.Shutdown();
+    REQUIRE(saw_runtime_error.load(std::memory_order_relaxed));
+    REQUIRE(errors.load(std::memory_order_relaxed) == 1);
 }
 
 TEST_CASE("Future: continuation falls back when executor rejects work",

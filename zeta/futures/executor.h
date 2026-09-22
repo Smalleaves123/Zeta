@@ -7,6 +7,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <deque>
+#include <exception>
 #include <functional>
 #include <mutex>
 #include <stdexcept>
@@ -32,8 +33,14 @@ public:
 
 class ThreadPoolExecutor final : public Executor {
 public:
+    /// Receives exceptions escaping a task. If unset, the default behavior is
+    /// to terminate the process, preserving the historical fail-fast policy.
+    using TaskErrorHandler = std::function<void(std::exception_ptr)>;
+
     explicit ThreadPoolExecutor(
-        std::size_t worker_count = std::thread::hardware_concurrency()) {
+        std::size_t worker_count = std::thread::hardware_concurrency(),
+        TaskErrorHandler error_handler = {})
+        : error_handler_(std::move(error_handler)) {
         if (worker_count == 0) worker_count = 1;
         workers_.reserve(worker_count);
         try {
@@ -77,7 +84,10 @@ public:
         for (std::thread& worker : workers_) {
             if (worker.joinable()) worker.join();
         }
-        workers_.clear();
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            workers_.clear();
+        }
     }
 
     [[nodiscard]] bool IsShutdown() const noexcept {
@@ -91,6 +101,7 @@ public:
     }
 
     [[nodiscard]] std::size_t WorkerCount() const noexcept {
+        std::lock_guard<std::mutex> lock(mutex_);
         return workers_.size();
     }
 
@@ -113,7 +124,14 @@ private:
             try {
                 task();
             } catch (...) {
-                std::terminate();
+                if (!error_handler_) {
+                    std::terminate();
+                }
+                try {
+                    error_handler_(std::current_exception());
+                } catch (...) {
+                    std::terminate();
+                }
             }
         }
     }
@@ -122,6 +140,7 @@ private:
     std::condition_variable condition_;
     std::deque<std::function<void()>> tasks_;
     std::vector<std::thread> workers_;
+    TaskErrorHandler error_handler_;
     bool stopping_ = false;
 };
 
