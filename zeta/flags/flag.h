@@ -47,7 +47,14 @@ public:
         if (register_global) Register();
     }
 
-    [[nodiscard]] const T& Get()      const noexcept { return value_; }
+    /// Returns a snapshot of the current value.
+    ///
+    /// A copy is intentional: callers may read a flag while another thread
+    /// updates it without retaining a reference into mutable storage.
+    [[nodiscard]] T Get() const {
+        std::lock_guard<std::mutex> lock(mu_);
+        return value_;
+    }
     [[nodiscard]] const T& Default()  const noexcept { return default_; }
 
     void Set(T v) noexcept {

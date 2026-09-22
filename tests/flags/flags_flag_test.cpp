@@ -200,3 +200,29 @@ TEST_CASE("flags: CurrentValue is safe under concurrent reads", "[flags][thread]
     for (auto& t : threads) t.join();
     REQUIRE(ok.load(std::memory_order_relaxed));
 }
+
+TEST_CASE("flags: Get returns race-free snapshots", "[flags][thread]") {
+    zeta::Flag<int32_t> f("snapshots", "", __FILE__, 0);
+    std::atomic<bool> stop{false};
+    std::atomic<bool> ok{true};
+
+    std::thread writer([&] {
+        for (int32_t value = 0; value < 10000; ++value) {
+            f.Set(value);
+        }
+        stop.store(true, std::memory_order_release);
+    });
+    std::thread reader([&] {
+        while (!stop.load(std::memory_order_acquire)) {
+            const int32_t value = f.Get();
+            if (value < 0 || value >= 10000) {
+                ok.store(false, std::memory_order_relaxed);
+                break;
+            }
+        }
+    });
+
+    writer.join();
+    reader.join();
+    REQUIRE(ok.load(std::memory_order_relaxed));
+}
