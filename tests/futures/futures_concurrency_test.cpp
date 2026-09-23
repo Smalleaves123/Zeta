@@ -30,6 +30,16 @@ TEST_CASE("CancellationToken: registrations run once and can be reset",
     REQUIRE(calls.load(std::memory_order_relaxed) == 1);
 }
 
+TEST_CASE("CancellationToken: immediate callback exceptions are contained",
+          "[futures][cancellation][exception]") {
+    zeta::CancellationSource source;
+    REQUIRE(source.RequestCancellation());
+
+    REQUIRE_NOTHROW((void)source.GetToken().Register([] {
+        throw std::runtime_error("callback failed");
+    }));
+}
+
 TEST_CASE("ThreadPoolExecutor: runs submitted tasks", "[futures][executor]") {
     zeta::ThreadPoolExecutor executor(2);
     std::atomic<int> completed{0};

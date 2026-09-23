@@ -92,6 +92,10 @@ public:
         return state_->requested;
     }
 
+    /// Registers a callback that runs once when cancellation is requested.
+    /// If cancellation already happened, the callback runs synchronously.
+    /// Callback exceptions are contained so registration has the same
+    /// non-throwing behavior as CancellationSource::RequestCancellation().
     [[nodiscard]] CancellationRegistration Register(
         std::function<void()> callback) const {
         if (state_ == nullptr || !callback) return {};
@@ -109,7 +113,12 @@ public:
             }
         }
 
-        if (invoke_now) callback();
+        if (invoke_now) {
+            try {
+                callback();
+            } catch (...) {
+            }
+        }
         return CancellationRegistration(
             invoke_now ? nullptr : state_, invoke_now ? 0 : id);
     }
