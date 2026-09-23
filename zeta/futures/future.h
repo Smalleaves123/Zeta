@@ -754,7 +754,8 @@ private:
     std::shared_ptr<detail::FutureState<T>> state_;
 
     friend class Promise<T>;
-    friend class SemiFuture<T>;
+    template <typename>
+    friend class SemiFuture;
     friend std::pair<Promise<T>, Future<T>> makePromiseContract<T>();
 };
 
@@ -1054,7 +1055,10 @@ private:
     std::shared_ptr<detail::FutureState<T>> state_;
     Executor* executor_ = nullptr;
 
-    friend class Future<T>;
+    template <typename>
+    friend class Future;
+    template <typename>
+    friend class SemiFuture;
     friend std::pair<Promise<T>, Future<T>> makePromiseContract<T>();
 };
 
@@ -1062,6 +1066,22 @@ template <typename T>
 [[nodiscard]] SemiFuture<T> Future<T>::Via(Executor& executor) && {
     return SemiFuture<T>(std::move(*this), &executor);
 }
+
+namespace detail {
+
+template <typename T>
+[[nodiscard]] Future<T> ToFuturePreservingExecutor(SemiFuture<T> future) {
+    if (!future.valid()) return std::move(future).ToFuture();
+
+    auto [promise, output] = makePromiseContract<T>();
+    (void)std::move(future).ThenTry(
+        [promise = std::move(promise)](StatusOr<T> result) mutable {
+            (void)promise.SetResult(std::move(result));
+        });
+    return std::move(output);
+}
+
+} // namespace detail
 
 // ═══════════════════════════════════════════════════════════════════════
 // Contract factory
@@ -1087,7 +1107,8 @@ template <typename T>
     std::vector<Future<T>> converted;
     converted.reserve(futures.size());
     for (auto& future : futures) {
-        converted.push_back(std::move(future).ToFuture());
+        converted.push_back(
+            detail::ToFuturePreservingExecutor(std::move(future)));
     }
     return detail::StartCollectAll<T>(std::move(converted));
 }
@@ -1104,7 +1125,8 @@ template <typename T>
     std::vector<Future<T>> converted;
     converted.reserve(futures.size());
     for (auto& future : futures) {
-        converted.push_back(std::move(future).ToFuture());
+        converted.push_back(
+            detail::ToFuturePreservingExecutor(std::move(future)));
     }
     return detail::StartWhenAll<T>(std::move(converted));
 }
@@ -1121,7 +1143,8 @@ template <typename T>
     std::vector<Future<T>> converted;
     converted.reserve(futures.size());
     for (auto& future : futures) {
-        converted.push_back(std::move(future).ToFuture());
+        converted.push_back(
+            detail::ToFuturePreservingExecutor(std::move(future)));
     }
     return detail::StartCollectAny<T>(std::move(converted));
 }
@@ -1140,7 +1163,8 @@ template <typename T>
     std::vector<Future<T>> converted;
     converted.reserve(futures.size());
     for (auto& future : futures) {
-        converted.push_back(std::move(future).ToFuture());
+        converted.push_back(
+            detail::ToFuturePreservingExecutor(std::move(future)));
     }
     return detail::StartCollectN<T>(std::move(converted), count);
 }

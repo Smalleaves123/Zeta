@@ -36,6 +36,10 @@ public:
         cv_.notify_one();
     }
 
+    [[nodiscard]] bool HasRunTask() const noexcept {
+        return ran_task_.load(std::memory_order_acquire);
+    }
+
 private:
     void Run() {
         for (;;) {
@@ -49,6 +53,7 @@ private:
                 task = std::move(tasks_.front());
                 tasks_.pop();
             }
+            ran_task_.store(true, std::memory_order_release);
             task();
         }
     }
@@ -58,6 +63,7 @@ private:
     std::queue<std::function<void()>> tasks_;
     bool stopping_ = false;
     std::thread worker_;
+    std::atomic<bool> ran_task_{false};
 };
 
 } // namespace
@@ -159,6 +165,79 @@ TEST_CASE("SemiFuture: collectAll accepts semi futures", "[futures][semifuture][
     REQUIRE(result.value().size() == 2);
     REQUIRE(result.value()[0].value() == 10);
     REQUIRE(result.value()[1].value() == 32);
+}
+
+TEST_CASE("SemiFuture: collectAll preserves executor scheduling",
+          "[futures][semifuture][collect_all]") {
+    BackgroundExecutor executor;
+    auto [promise, future] = zeta::makePromiseContract<int>();
+    std::vector<zeta::SemiFuture<int>> futures;
+    futures.push_back(std::move(future).Via(executor));
+
+    auto grouped = zeta::collectAll<int>(std::move(futures));
+    REQUIRE_FALSE(executor.HasRunTask());
+    REQUIRE(promise.SetValue(42).ok());
+
+    auto result = std::move(grouped).Get();
+    REQUIRE(result.ok());
+    REQUIRE(result.value().size() == 1);
+    REQUIRE(result.value()[0].value() == 42);
+    REQUIRE(executor.HasRunTask());
+}
+
+TEST_CASE("SemiFuture: whenAll preserves executor scheduling",
+          "[futures][semifuture][when_all]") {
+    BackgroundExecutor executor;
+    auto [promise, future] = zeta::makePromiseContract<int>();
+    std::vector<zeta::SemiFuture<int>> futures;
+    futures.push_back(std::move(future).Via(executor));
+
+    auto grouped = zeta::whenAll<int>(std::move(futures));
+    REQUIRE_FALSE(executor.HasRunTask());
+    REQUIRE(promise.SetValue(42).ok());
+
+    auto result = std::move(grouped).Get();
+    REQUIRE(result.ok());
+    REQUIRE(result.value().size() == 1);
+    REQUIRE(result.value()[0] == 42);
+    REQUIRE(executor.HasRunTask());
+}
+
+TEST_CASE("SemiFuture: collectAny preserves executor scheduling",
+          "[futures][semifuture][collect_any]") {
+    BackgroundExecutor executor;
+    auto [promise, future] = zeta::makePromiseContract<int>();
+    std::vector<zeta::SemiFuture<int>> futures;
+    futures.push_back(std::move(future).Via(executor));
+
+    auto grouped = zeta::collectAny<int>(std::move(futures));
+    REQUIRE_FALSE(executor.HasRunTask());
+    REQUIRE(promise.SetValue(42).ok());
+
+    auto result = std::move(grouped).Get();
+    REQUIRE(result.ok());
+    REQUIRE(result.value().first == 0);
+    REQUIRE(result.value().second.value() == 42);
+    REQUIRE(executor.HasRunTask());
+}
+
+TEST_CASE("SemiFuture: collectN preserves executor scheduling",
+          "[futures][semifuture][collect_n]") {
+    BackgroundExecutor executor;
+    auto [promise, future] = zeta::makePromiseContract<int>();
+    std::vector<zeta::SemiFuture<int>> futures;
+    futures.push_back(std::move(future).Via(executor));
+
+    auto grouped = zeta::collectN<int>(std::move(futures), 1);
+    REQUIRE_FALSE(executor.HasRunTask());
+    REQUIRE(promise.SetValue(42).ok());
+
+    auto result = std::move(grouped).Get();
+    REQUIRE(result.ok());
+    REQUIRE(result.value().size() == 1);
+    REQUIRE(result.value()[0].first == 0);
+    REQUIRE(result.value()[0].second.value() == 42);
+    REQUIRE(executor.HasRunTask());
 }
 
 TEST_CASE("SemiFuture: collectN accepts semi futures", "[futures][semifuture][collect_n]") {
