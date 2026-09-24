@@ -10,6 +10,9 @@ target_link_libraries(zeta_example_service_context PRIVATE zeta::service)
 add_executable(zeta_example_service_async_context service_async_context.cpp)
 target_link_libraries(zeta_example_service_async_context PRIVATE zeta::service)
 
+add_executable(zeta_example_futures_coroutine futures_coroutine.cpp)
+target_link_libraries(zeta_example_futures_coroutine PRIVATE zeta::futures)
+
 add_executable(zeta_example_time_control time_control.cpp)
 target_link_libraries(zeta_example_time_control PRIVATE zeta::time)
 

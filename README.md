@@ -811,6 +811,26 @@ Closing an async queue rejects new sends, drains already buffered values, and
 completes pending receives with the supplied status. It has no transport or
 service-specific semantics.
 
+For C++20 coroutine-based composition, include `zeta/futures/coroutine.h` and
+return `zeta::Coroutine<T>` from the coroutine function. Awaiting a Future
+returns a `StatusOr<T>`, so errors can be propagated without exceptions:
+
+```cpp
+zeta::Coroutine<int> AddOne(zeta::Future<int> input) {
+    auto result = co_await std::move(input);
+    if (!result.ok()) co_return result.status();
+    co_return result.value() + 1;
+}
+
+auto [promise, input] = zeta::makePromiseContract<int>();
+auto output = AddOne(std::move(input)).GetFuture();
+promise.SetValue(41);
+auto result = std::move(output).Get();  // 42
+```
+
+The complete runnable version is
+[`examples/futures_coroutine.cpp`](./examples/futures_coroutine.cpp).
+
 Cancellation is cooperative: it stops the caller's wait and does not forcibly
 terminate a producer or continuation. `Via()` borrows its `Executor`; the
 executor must outlive the `SemiFuture` and all continuations scheduled on it.

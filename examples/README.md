@@ -16,6 +16,7 @@ cmake --build build/examples
 ./build/examples/examples/zeta_example_status_time
 ./build/examples/examples/zeta_example_service_context
 ./build/examples/examples/zeta_example_service_async_context
+./build/examples/examples/zeta_example_futures_coroutine
 ./build/examples/examples/zeta_example_time_control
 ./build/examples/examples/zeta_example_time_retry
 ./build/examples/examples/zeta_example_log_random
@@ -33,6 +34,7 @@ cmake --build build/examples
 - `status_time.cpp`: `Result`, `Status`, integer parsing, local/UTC timestamps
 - `service_context.cpp`: request IDs, metadata, deadlines, cancellation, and propagation
 - `service_async_context.cpp`: request context propagation through a thread pool and Future continuation
+- `futures_coroutine.cpp`: C++20 coroutine `co_await` over a `Future<T>`
 - `time_control.cpp`: `Stopwatch`, `Deadline`, `PeriodicTimer`, `ExponentialBackoff`
 - `time_retry.cpp`: retry budget with attempts, deadline, and exponential backoff
 - `log_random.cpp`: structured logging, `BitGen`, `Uniform`, `Bernoulli`
