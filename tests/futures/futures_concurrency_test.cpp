@@ -40,6 +40,25 @@ TEST_CASE("CancellationToken: immediate callback exceptions are contained",
     }));
 }
 
+TEST_CASE("CancellationRegistration: reset races safely with cancellation",
+          "[futures][cancellation][race]") {
+    for (int iteration = 0; iteration != 200; ++iteration) {
+        zeta::CancellationSource source;
+        std::atomic<int> callbacks{0};
+        auto registration = source.GetToken().Register([&callbacks] {
+            callbacks.fetch_add(1, std::memory_order_relaxed);
+        });
+
+        std::thread requester([&source] {
+            (void)source.RequestCancellation();
+        });
+        registration.Reset();
+        requester.join();
+
+        REQUIRE(callbacks.load(std::memory_order_relaxed) <= 1);
+    }
+}
+
 TEST_CASE("ThreadPoolExecutor: runs submitted tasks", "[futures][executor]") {
     zeta::ThreadPoolExecutor executor(2);
     std::atomic<int> completed{0};
@@ -168,4 +187,35 @@ TEST_CASE("AsyncQueue: pending receive observes cancellation",
     REQUIRE_FALSE(result.ok());
     REQUIRE(result.status().code() == zeta::StatusCode::kCancelled);
     REQUIRE(queue.PendingReceivers() == 0);
+}
+
+TEST_CASE("AsyncQueue: send and cancellation race safely",
+          "[futures][async_queue][race]") {
+    for (int iteration = 0; iteration != 200; ++iteration) {
+        zeta::AsyncQueue<int> queue;
+        zeta::CancellationSource source;
+        auto pending = queue.Receive(source.GetToken());
+        std::atomic<bool> start{false};
+
+        std::thread sender([&queue, &start, iteration] {
+            while (!start.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
+            (void)queue.Send(iteration);
+        });
+        std::thread canceller([&source, &start] {
+            while (!start.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
+            (void)source.RequestCancellation();
+        });
+        start.store(true, std::memory_order_release);
+        sender.join();
+        canceller.join();
+
+        auto result = std::move(pending).Get();
+        REQUIRE((result.ok() ||
+                 result.status().code() == zeta::StatusCode::kCancelled));
+        queue.Close();
+    }
 }

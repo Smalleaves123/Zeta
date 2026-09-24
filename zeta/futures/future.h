@@ -376,25 +376,19 @@ public:
 
     Promise(Promise&& other) noexcept
         : state_(std::move(other.state_))
-        , satisfied_(std::exchange(other.satisfied_, true))
         , future_taken_(std::exchange(other.future_taken_, true)) {}
 
     Promise& operator=(Promise&& other) noexcept {
         if (this != &other) {
-            if (state_ != nullptr && !satisfied_ && !state_->ready) {
-                (void)SetError(CancelledError("broken promise"));
-            }
+            if (state_ != nullptr) (void)SetError(CancelledError("broken promise"));
             state_ = std::move(other.state_);
-            satisfied_ = std::exchange(other.satisfied_, true);
             future_taken_ = std::exchange(other.future_taken_, true);
         }
         return *this;
     }
 
     ~Promise() {
-        if (state_ != nullptr && !satisfied_ && !state_->ready) {
-            (void)SetError(CancelledError("broken promise"));
-        }
+        if (state_ != nullptr) (void)SetError(CancelledError("broken promise"));
     }
 
     [[nodiscard]] Future<T> GetFuture() const& {
@@ -442,7 +436,6 @@ public:
 
             state_->result.emplace(std::move(result));
             state_->ready = true;
-            satisfied_ = true;
 
             if (state_->continuation != nullptr) {
                 continuation = std::move(state_->continuation);
@@ -465,7 +458,6 @@ private:
         : state_(std::move(state)) {}
 
     std::shared_ptr<detail::FutureState<T>> state_;
-    bool satisfied_ = false;
     mutable bool future_taken_ = false;
 
     friend class Future<T>;

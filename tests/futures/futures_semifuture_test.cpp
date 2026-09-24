@@ -131,9 +131,11 @@ TEST_CASE("SemiFuture: GetFor wakes promptly when cancellation is requested",
     auto semi = std::move(future).Via(executor);
     zeta::CancellationSource source;
 
-    std::thread canceller([&source] {
+    std::atomic<bool> cancelled{false};
+    std::thread canceller([&source, &cancelled] {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        REQUIRE(source.RequestCancellation());
+        cancelled.store(source.RequestCancellation(),
+                        std::memory_order_release);
     });
 
     const auto start = std::chrono::steady_clock::now();
@@ -145,6 +147,7 @@ TEST_CASE("SemiFuture: GetFor wakes promptly when cancellation is requested",
     REQUIRE_FALSE(result.ok());
     REQUIRE(result.status().code() == zeta::StatusCode::kCancelled);
     REQUIRE(elapsed < std::chrono::seconds(1));
+    REQUIRE(cancelled.load(std::memory_order_acquire));
 }
 
 TEST_CASE("SemiFuture: collectAll accepts semi futures", "[futures][semifuture][collect_all]") {

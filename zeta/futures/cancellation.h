@@ -39,15 +39,24 @@ public:
     CancellationRegistration(const CancellationRegistration&) = delete;
     CancellationRegistration& operator=(const CancellationRegistration&) = delete;
 
-    CancellationRegistration(CancellationRegistration&& other) noexcept
-        : state_(std::move(other.state_))
-        , id_(std::exchange(other.id_, 0)) {}
+    CancellationRegistration(CancellationRegistration&& other) noexcept {
+        std::lock_guard<std::mutex> lock(other.mutex_);
+        state_ = std::move(other.state_);
+        id_ = std::exchange(other.id_, 0);
+    }
 
     CancellationRegistration& operator=(CancellationRegistration&& other) noexcept {
         if (this != &other) {
-            Reset();
-            state_ = std::move(other.state_);
-            id_ = std::exchange(other.id_, 0);
+            std::shared_ptr<detail::CancellationState> old_state;
+            std::size_t old_id = 0;
+            {
+                std::scoped_lock lock(mutex_, other.mutex_);
+                old_state = std::move(state_);
+                old_id = std::exchange(id_, 0);
+                state_ = std::move(other.state_);
+                id_ = std::exchange(other.id_, 0);
+            }
+            RemoveCallback(std::move(old_state), old_id);
         }
         return *this;
     }
@@ -57,25 +66,38 @@ public:
     }
 
     void Reset() noexcept {
-        if (state_ == nullptr || id_ == 0) return;
-        std::lock_guard<std::mutex> lock(state_->mutex);
-        auto& callbacks = state_->callbacks;
-        callbacks.erase(
-            std::remove_if(callbacks.begin(), callbacks.end(),
-                           [this](const auto& callback) {
-                               return callback.id == id_;
-                           }),
-            callbacks.end());
-        state_.reset();
-        id_ = 0;
+        std::shared_ptr<detail::CancellationState> state;
+        std::size_t id = 0;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            state = std::move(state_);
+            id = std::exchange(id_, 0);
+        }
+        RemoveCallback(std::move(state), id);
     }
 
 private:
+    static void RemoveCallback(
+        std::shared_ptr<detail::CancellationState> state,
+        std::size_t id) noexcept {
+        if (state == nullptr || id == 0) return;
+
+        std::lock_guard<std::mutex> lock(state->mutex);
+        auto& callbacks = state->callbacks;
+        callbacks.erase(
+            std::remove_if(callbacks.begin(), callbacks.end(),
+                           [id](const auto& callback) {
+                               return callback.id == id;
+                           }),
+            callbacks.end());
+    }
+
     CancellationRegistration(
         std::shared_ptr<detail::CancellationState> state,
         std::size_t id)
         : state_(std::move(state)), id_(id) {}
 
+    mutable std::mutex mutex_;
     std::shared_ptr<detail::CancellationState> state_;
     std::size_t id_ = 0;
 

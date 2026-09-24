@@ -4,6 +4,7 @@ zeta_module(futures
     HEADERS
     async_queue.h
     cancellation.h
+    coroutine.h
     executor.h
     ${CMAKE_CURRENT_SOURCE_DIR}/future.h
     ${CMAKE_CURRENT_SOURCE_DIR}/task_group.h

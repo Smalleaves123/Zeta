@@ -24,6 +24,11 @@ All notable changes to Zeta are documented here.
   structured `TaskGroup` cancellation/joining.
 - `AsyncQueue<T>` for Future-based receive, bounded buffering, close
   propagation, and cancellation-aware pending receivers.
+- C++20 coroutine adapters in `zeta/futures/coroutine.h`, including
+  `zeta::Coroutine`, Future `co_await`, and coroutine fan-in helpers.
+- Futures and executor stress coverage plus a `futures_bench` microbenchmark
+  for completion, continuation, fan-in, cancellation, scheduling, and
+  coroutine-await paths.
 
 ### Changed
 
@@ -31,6 +36,8 @@ All notable changes to Zeta are documented here.
   enrichment now lives in an optional service-side adapter.
 - `CancellationToken` remains usable without Future and now supports
   cancellation registrations for generic asynchronous components.
+- Future completion, continuation dispatch, and cancellation registration now
+  synchronize concurrent completion/cancellation/reset races.
 
 ## [0.13.0] - 2026-07-14
 

@@ -36,16 +36,19 @@ TEST_CASE("Future: fulfill and get value", "[futures]") {
 
 TEST_CASE("Future: wait until value is ready", "[futures][thread]") {
     auto [promise, future] = zeta::makePromiseContract<std::string>();
+    std::atomic<bool> worker_succeeded{false};
 
-    std::thread worker([p = std::move(promise)]() mutable {
+    std::thread worker([p = std::move(promise), &worker_succeeded]() mutable {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        REQUIRE(p.SetValue("ready").ok());
+        worker_succeeded.store(p.SetValue("ready").ok(),
+                               std::memory_order_release);
     });
 
     REQUIRE(future.WaitFor(std::chrono::seconds(1)));
     auto result = std::move(future).Get();
     REQUIRE(result.ok());
     REQUIRE(result.value() == "ready");
+    REQUIRE(worker_succeeded.load(std::memory_order_acquire));
 
     worker.join();
 }
@@ -109,10 +112,14 @@ TEST_CASE("Future: GetFor observes cooperative cancellation", "[futures][cancel]
     zeta::CancellationSource source;
     auto token = source.GetToken();
 
-    std::thread canceller([&source] {
+    std::atomic<bool> first_request{false};
+    std::atomic<bool> second_request{true};
+    std::thread canceller([&source, &first_request, &second_request] {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        REQUIRE(source.RequestCancellation());
-        REQUIRE(!source.RequestCancellation());
+        first_request.store(source.RequestCancellation(),
+                            std::memory_order_release);
+        second_request.store(!source.RequestCancellation(),
+                             std::memory_order_release);
     });
 
     auto result = std::move(future).GetFor(std::chrono::seconds(1), token);
@@ -120,6 +127,8 @@ TEST_CASE("Future: GetFor observes cooperative cancellation", "[futures][cancel]
 
     REQUIRE(!result.ok());
     REQUIRE(result.status().code() == zeta::StatusCode::kCancelled);
+    REQUIRE(first_request.load(std::memory_order_acquire));
+    REQUIRE(second_request.load(std::memory_order_acquire));
 }
 
 TEST_CASE("Future: double set is rejected", "[futures]") {
@@ -133,6 +142,27 @@ TEST_CASE("Future: double set is rejected", "[futures]") {
     auto result = std::move(future).Get();
     REQUIRE(result.ok());
     REQUIRE(result.value() == 7);
+}
+
+TEST_CASE("Future: concurrent promise completion is single-shot",
+          "[futures][thread][race]") {
+    for (int iteration = 0; iteration != 200; ++iteration) {
+        auto [promise, future] = zeta::makePromiseContract<int>();
+        auto shared_promise = std::make_shared<zeta::Promise<int>>(
+            std::move(promise));
+        std::thread value_writer([shared_promise, iteration] {
+            (void)shared_promise->SetValue(iteration);
+        });
+        std::thread error_writer([shared_promise] {
+            (void)shared_promise->Cancel();
+        });
+        value_writer.join();
+        error_writer.join();
+
+        auto result = std::move(future).Get();
+        REQUIRE((result.ok() ||
+                 result.status().code() == zeta::StatusCode::kCancelled));
+    }
 }
 
 TEST_CASE("Future: then can transform a value", "[futures][then]") {
@@ -303,17 +333,22 @@ TEST_CASE("Future: collectAny returns first completed future with index", "[futu
     futures.push_back(std::move(f3));
     auto grouped = zeta::collectAny<int>(std::move(futures));
 
-    std::thread t1([p = std::move(p1)]() mutable {
+    std::atomic<bool> first_set{false};
+    std::atomic<bool> second_set{false};
+    std::atomic<bool> third_set{false};
+    std::thread t1([p = std::move(p1), &first_set]() mutable {
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
-        REQUIRE(p.SetValue(1).ok());
+        first_set.store(p.SetValue(1).ok(), std::memory_order_release);
     });
-    std::thread t2([p = std::move(p2)]() mutable {
+    std::thread t2([p = std::move(p2), &second_set]() mutable {
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        REQUIRE(p.SetError(zeta::UnavailableError("fast")).ok());
+        second_set.store(
+            p.SetError(zeta::UnavailableError("fast")).ok(),
+            std::memory_order_release);
     });
-    std::thread t3([p = std::move(p3)]() mutable {
+    std::thread t3([p = std::move(p3), &third_set]() mutable {
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
-        REQUIRE(p.SetValue(3).ok());
+        third_set.store(p.SetValue(3).ok(), std::memory_order_release);
     });
 
     auto result = std::move(grouped).Get();
@@ -325,6 +360,9 @@ TEST_CASE("Future: collectAny returns first completed future with index", "[futu
     t1.join();
     t2.join();
     t3.join();
+    REQUIRE(first_set.load(std::memory_order_acquire));
+    REQUIRE(second_set.load(std::memory_order_acquire));
+    REQUIRE(third_set.load(std::memory_order_acquire));
 }
 
 TEST_CASE("Future: collectN returns first N completed futures in completion order", "[futures][collect_n]") {
@@ -338,17 +376,20 @@ TEST_CASE("Future: collectN returns first N completed futures in completion orde
     futures.push_back(std::move(f3));
     auto grouped = zeta::collectN<int>(std::move(futures), 2);
 
-    std::thread t1([p = std::move(p1)]() mutable {
+    std::atomic<bool> first_set{false};
+    std::atomic<bool> second_set{false};
+    std::atomic<bool> third_set{false};
+    std::thread t1([p = std::move(p1), &first_set]() mutable {
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
-        REQUIRE(p.SetValue(10).ok());
+        first_set.store(p.SetValue(10).ok(), std::memory_order_release);
     });
-    std::thread t2([p = std::move(p2)]() mutable {
+    std::thread t2([p = std::move(p2), &second_set]() mutable {
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        REQUIRE(p.SetValue(20).ok());
+        second_set.store(p.SetValue(20).ok(), std::memory_order_release);
     });
-    std::thread t3([p = std::move(p3)]() mutable {
+    std::thread t3([p = std::move(p3), &third_set]() mutable {
         std::this_thread::sleep_for(std::chrono::milliseconds(15));
-        REQUIRE(p.SetValue(30).ok());
+        third_set.store(p.SetValue(30).ok(), std::memory_order_release);
     });
 
     auto result = std::move(grouped).Get();
@@ -364,4 +405,7 @@ TEST_CASE("Future: collectN returns first N completed futures in completion orde
     t1.join();
     t2.join();
     t3.join();
+    REQUIRE(first_set.load(std::memory_order_acquire));
+    REQUIRE(second_set.load(std::memory_order_acquire));
+    REQUIRE(third_set.load(std::memory_order_acquire));
 }

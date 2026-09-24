@@ -5,11 +5,13 @@
 /// @brief  General task scheduling interfaces and a basic thread-pool executor.
 
 #include <condition_variable>
+#include <chrono>
 #include <cstddef>
 #include <deque>
 #include <exception>
 #include <functional>
 #include <mutex>
+#include <queue>
 #include <stdexcept>
 #include <thread>
 #include <utility>
@@ -142,6 +144,135 @@ private:
     std::vector<std::thread> workers_;
     TaskErrorHandler error_handler_;
     bool stopping_ = false;
+};
+
+/// A single-worker executor for delayed and immediate tasks.
+///
+/// Scheduled tasks are owned by the executor and are drained during shutdown.
+/// The executor is intentionally small; use ThreadPoolExecutor when parallel
+/// task execution is required.
+class ScheduledExecutor final : public Executor {
+public:
+    using TaskErrorHandler = std::function<void(std::exception_ptr)>;
+
+    explicit ScheduledExecutor(TaskErrorHandler error_handler = {})
+        : error_handler_(std::move(error_handler))
+        , worker_([this] { WorkerLoop(); }) {}
+
+    ScheduledExecutor(const ScheduledExecutor&) = delete;
+    ScheduledExecutor& operator=(const ScheduledExecutor&) = delete;
+    ScheduledExecutor(ScheduledExecutor&&) = delete;
+    ScheduledExecutor& operator=(ScheduledExecutor&&) = delete;
+
+    ~ScheduledExecutor() override { Shutdown(); }
+
+    void Add(std::function<void()> task) override {
+        ScheduleAfter(std::chrono::steady_clock::duration::zero(),
+                      std::move(task));
+    }
+
+    void ScheduleAfter(
+        std::chrono::steady_clock::duration delay,
+        std::function<void()> task) {
+        if (!task) return;
+        if (delay < std::chrono::steady_clock::duration::zero()) {
+            delay = std::chrono::steady_clock::duration::zero();
+        }
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (stopping_) {
+                throw std::runtime_error("scheduled executor is shut down");
+            }
+            tasks_.push(TaskEntry{
+                std::chrono::steady_clock::now() + delay,
+                next_sequence_++,
+                std::move(task)});
+        }
+        condition_.notify_one();
+    }
+
+    void Shutdown() noexcept {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (stopping_) return;
+            stopping_ = true;
+        }
+        condition_.notify_all();
+        if (worker_.joinable()) worker_.join();
+    }
+
+    [[nodiscard]] bool IsShutdown() const noexcept {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return stopping_;
+    }
+
+    [[nodiscard]] std::size_t PendingTasks() const noexcept {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return tasks_.size();
+    }
+
+private:
+    struct TaskEntry {
+        std::chrono::steady_clock::time_point deadline;
+        std::size_t sequence;
+        std::function<void()> task;
+    };
+
+    struct Earlier {
+        bool operator()(const TaskEntry& lhs, const TaskEntry& rhs) const {
+            if (lhs.deadline != rhs.deadline) {
+                return lhs.deadline > rhs.deadline;
+            }
+            return lhs.sequence > rhs.sequence;
+        }
+    };
+
+    void WorkerLoop() noexcept {
+        for (;;) {
+            std::function<void()> task;
+            {
+                std::unique_lock<std::mutex> lock(mutex_);
+                for (;;) {
+                    if (tasks_.empty()) {
+                        if (stopping_) return;
+                        condition_.wait(lock);
+                        continue;
+                    }
+
+                    const auto now = std::chrono::steady_clock::now();
+                    if (!stopping_ && tasks_.top().deadline > now) {
+                        condition_.wait_until(lock, tasks_.top().deadline);
+                        continue;
+                    }
+
+                    task = std::move(const_cast<TaskEntry&>(tasks_.top()).task);
+                    tasks_.pop();
+                    break;
+                }
+            }
+
+            try {
+                task();
+            } catch (...) {
+                if (!error_handler_) {
+                    std::terminate();
+                }
+                try {
+                    error_handler_(std::current_exception());
+                } catch (...) {
+                    std::terminate();
+                }
+            }
+        }
+    }
+
+    mutable std::mutex mutex_;
+    std::condition_variable condition_;
+    std::priority_queue<TaskEntry, std::vector<TaskEntry>, Earlier> tasks_;
+    TaskErrorHandler error_handler_;
+    std::size_t next_sequence_ = 0;
+    bool stopping_ = false;
+    std::thread worker_;
 };
 
 } // namespace zeta

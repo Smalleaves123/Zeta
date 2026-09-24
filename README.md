@@ -33,7 +33,7 @@ int main() {
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-ctest --test-dir build                    # 67 CTest targets
+ctest --test-dir build                    # 68 CTest targets
 ```
 
 ### Examples
@@ -120,6 +120,20 @@ Available module targets currently include:
 - `zeta::time`
 - `zeta::types`
 - `zeta::utility`
+
+To validate an installed package from a release build, install it to a staging
+prefix and build the repository's consumer smoke test against that prefix:
+
+```bash
+cmake --install build --prefix "$PWD/stage"
+cmake -S cmake/package_smoke_test -B build/package-smoke \
+  -DCMAKE_PREFIX_PATH="$PWD/stage"
+cmake --build build/package-smoke
+./build/package-smoke/zeta_package_smoke_test
+```
+
+The smoke test covers both the `zeta::zeta` compatibility target and individual
+module targets, including the installed Futures coroutine header.
 
 **SIMD backends** are auto-detected:
 | Platform | Backend | Probing speed |
@@ -865,7 +879,7 @@ and span fields to structured logs without coupling `zeta::log` to services.
 
 4. **Heterogeneous by default.** Any lookup/erase/count method templates on the key type, constrained with transparent hash/equal detection.
 
-5. **Production reliability.** 67 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
+5. **Production reliability.** 68 CTest targets, sanitizer presets, fuzz targets, and move-only type coverage. Exception-safe insert paths and explicit iterator invalidation semantics.
 
 ---
 
@@ -881,6 +895,20 @@ Measured on Apple M1, clang-16, Release build. Results are indicative — always
 | Memory (1M pairs) | 48 MB | 32 MB | **33% less** |
 
 The benchmark suite also includes `time/retry` control-flow coverage so retry/backoff policies can be measured alongside container hot paths.
+
+Futures and coroutine benchmarks can be built and run with:
+
+```bash
+cmake -S . -B build-bench -DZETA_BUILD_BENCHMARKS=ON -DZETA_BUILD_TESTS=OFF
+cmake --build build-bench --target futures_bench
+./build-bench/benchmarks/futures_bench
+```
+
+`futures_bench` covers promise/future completion, continuation dispatch,
+thread-pool scheduling, fan-in operations, cancellation registration, delayed
+tasks, coroutine `co_await`, and a `std::future` baseline. Fan-in benchmarks
+complete every input before the next iteration so pending continuations do not
+spill into later samples.
 
 | Benchmark | `std::vector` | `zeta::InlinedVector<T,8>` | Benefit |
 |-----------|:---:|:---:|:---:|

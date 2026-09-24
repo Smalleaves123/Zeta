@@ -10,6 +10,7 @@
 #include <zeta/debugging/stack_trace.h>
 #include <zeta/flags/flag.h>
 #include <zeta/futures/async_queue.h>
+#include <zeta/futures/coroutine.h>
 #include <zeta/futures/executor.h>
 #include <zeta/functional/pipe.h>
 #include <zeta/log/formatters.h>
@@ -26,6 +27,16 @@
 
 #include <array>
 #include <string>
+
+namespace {
+
+zeta::Coroutine<int> PackageCoroutine(zeta::Future<int> input) {
+    auto result = co_await std::move(input);
+    if (!result.ok()) co_return result.status();
+    co_return result.value() + 1;
+}
+
+}  // namespace
 
 int main() {
     int value = 7;
@@ -92,6 +103,15 @@ int main() {
     zeta::AsyncQueue<int> async_queue;
     if (!async_queue.Send(7).ok() ||
         std::move(async_queue.Receive()).Get().value_or(0) != 7) {
+        return 1;
+    }
+
+    auto [coroutine_promise, coroutine_input] =
+        zeta::makePromiseContract<int>();
+    auto coroutine_output =
+        PackageCoroutine(std::move(coroutine_input)).GetFuture();
+    if (!coroutine_promise.SetValue(41).ok() ||
+        std::move(coroutine_output).Get().value_or(0) != 42) {
         return 1;
     }
 
