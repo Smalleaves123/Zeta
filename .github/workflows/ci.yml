@@ -110,6 +110,25 @@ jobs:
       - name: Consumer Run
         run: ./build/package-smoke/zeta_package_smoke_test
 
+  examples-smoke:
+    name: Examples Smoke Test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: >
+          cmake -S . -B build/examples-smoke
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DZETA_BUILD_TESTS=OFF
+          -DZETA_BUILD_EXAMPLES=ON
+      - name: Build
+        run: cmake --build build/examples-smoke --parallel 4
+      - name: Run examples
+        run: |
+          for example in build/examples-smoke/examples/zeta_example_*; do
+            "$example"
+          done
+
   fuzz-smoke:
     name: Fuzz Smoke Tests
     runs-on: ubuntu-24.04
