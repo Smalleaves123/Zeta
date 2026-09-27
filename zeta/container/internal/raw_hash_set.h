@@ -281,7 +281,8 @@ public:
         std::is_nothrow_move_constructible_v<Hash> &&
         std::is_nothrow_move_constructible_v<KeyEq>)
         : ctrl_(other.ctrl_), slots_(other.slots_),
-          size_(other.size_), capacity_(other.capacity_),
+          size_(other.size_), deleted_(other.deleted_),
+          capacity_(other.capacity_),
           hash_(std::move(other.hash_)), eq_(std::move(other.eq_)) {
         other.reset_layout();
     }
@@ -293,7 +294,8 @@ public:
             hash_ = std::move(other.hash_);
             eq_   = std::move(other.eq_);
             ctrl_ = other.ctrl_;  slots_ = other.slots_;
-            size_ = other.size_;  capacity_ = other.capacity_;
+            size_ = other.size_;  deleted_ = other.deleted_;
+            capacity_ = other.capacity_;
             other.reset_layout();
         }
         return *this;
@@ -408,6 +410,7 @@ public:
         pos.slot_->~stored_value_type();
         set_ctrl(idx, kDeleted);
         --size_;
+        ++deleted_;
         return iterator_at(idx + 1); // next valid
     }
 
@@ -428,6 +431,7 @@ public:
         slots_[idx].~stored_value_type();
         set_ctrl(idx, kDeleted);
         --size_;
+        ++deleted_;
         return 1;
     }
 
@@ -478,6 +482,7 @@ public:
         swap(ctrl_,     other.ctrl_);
         swap(slots_,    other.slots_);
         swap(size_,     other.size_);
+        swap(deleted_,  other.deleted_);
         swap(capacity_, other.capacity_);
         swap(hash_,     other.hash_);
         swap(eq_,       other.eq_);
@@ -506,6 +511,7 @@ private:
     int8_t*     ctrl_     = nullptr;
     stored_value_type* slots_    = nullptr;
     size_t      size_     = 0;
+    size_t      deleted_  = 0;
     size_t      capacity_ = 0;
     [[no_unique_address]] Hash   hash_;
     [[no_unique_address]] KeyEq  eq_;
@@ -537,7 +543,7 @@ private:
     // ── Helpers ──────────────────────────────────────────────────
     void reset_layout() noexcept {
         ctrl_ = nullptr; slots_ = nullptr;
-        size_ = 0; capacity_ = 0;
+        size_ = 0; deleted_ = 0; capacity_ = 0;
     }
 
     void set_ctrl(size_t i, int8_t val) noexcept {
@@ -563,12 +569,14 @@ private:
     // ── Rehash ────────────────────────────────────────────────────
     void rehash_impl(size_t new_capacity) {
         new_capacity = next_power_of_2(new_capacity);
-        if (new_capacity <= capacity_) return;
-
         int8_t* old_ctrl = ctrl_;
         stored_value_type* old_slots = slots_;
         size_t old_capacity = capacity_;
         size_t old_size = size_;
+        size_t old_deleted = deleted_;
+
+        if (new_capacity < capacity_) return;
+        if (new_capacity == capacity_ && deleted_ == 0) return;
 
         auto delete_ctrl = [](int8_t* p) noexcept { ::operator delete(p); };
         auto delete_slots = [](stored_value_type* p) noexcept { ::operator delete(p); };
@@ -588,6 +596,7 @@ private:
         slots_ = new_slots_guard.get();
         capacity_ = new_capacity;
         size_ = 0;
+        deleted_ = 0;
 
         std::memset(ctrl_, kEmpty, new_capacity + kGroupWidth + 1);
 
@@ -616,6 +625,7 @@ private:
             slots_ = old_slots;
             capacity_ = old_capacity;
             size_ = old_size;
+            deleted_ = old_deleted;
             throw;
         }
 
@@ -660,6 +670,7 @@ private:
         assert(capacity_ > 0 && zeta::has_single_bit(capacity_)); // power of 2
         uint8_t h2 = H2(hash_val);
         size_t pos = hash_val & (capacity_ - 1);
+        size_t groups_probed = 0;
 
         for (;;) {
             const int8_t* group = ctrl_ + pos;
@@ -674,6 +685,12 @@ private:
             }
 
             if (MatchEmpty(group) != 0) return capacity_;
+            if (++groups_probed >= capacity_ / kGroupWidth) {
+                // A table can temporarily contain only live or deleted
+                // slots after a full erase cycle. Bound the probe so lookup
+                // still terminates; the next insertion will rebuild it.
+                return capacity_;
+            }
             pos = (pos + kGroupWidth) & (capacity_ - 1);
         }
     }
@@ -717,9 +734,13 @@ private:
     std::pair<iterator, bool> emplace_new(const key_type& /*key*/,
                                           size_t hash_val,
                                           Args&&... args) {
-        if (size_ >= capacity_ * 7 / 8)
+        if (capacity_ == 0 || size_ >= capacity_ * 7 / 8) {
             rehash_impl(std::max<size_t>(capacity_ * 2, 16));
+        } else if (size_ + deleted_ >= capacity_ * 7 / 8) {
+            rehash_impl(capacity_);
+        }
         size_t pos = prepare_insert(hash_val);
+        if (ctrl_[pos] == kDeleted) --deleted_;
         ::new (slots_ + pos) stored_value_type(std::forward<Args>(args)...);
         set_ctrl(pos, static_cast<int8_t>(H2(hash_val)));
         ++size_;

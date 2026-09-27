@@ -412,6 +412,22 @@ TEST_CASE("flat_hash_set: interleaved insert and erase (tombstone)", "[set][stre
     for (int i = 0; i < 100; i += 2)  REQUIRE(s.contains(i + 100));
 }
 
+TEST_CASE("flat_hash_set: repeated erase and insert preserves size",
+          "[set][stress][tombstone]") {
+    zeta::flat_hash_set<int> s;
+    s.reserve(128);
+
+    for (int round = 0; round != 8; ++round) {
+        for (int i = 0; i != 64; ++i) s.insert(i);
+        for (int i = 0; i != 64; ++i) REQUIRE(s.erase(i) == 1);
+        REQUIRE(s.empty());
+        for (int i = 0; i != 64; ++i) s.insert(1000 * round + i);
+        REQUIRE(s.size() == 64);
+        for (int i = 0; i != 64; ++i) REQUIRE(s.erase(1000 * round + i) == 1);
+        REQUIRE(s.empty());
+    }
+}
+
 TEST_CASE("flat_hash_set: rehash rolls back on move throw", "[set][exception]") {
     RehashThrowingItem::Reset();
     zeta::flat_hash_set<RehashThrowingItem, RehashThrowingHash> s;
