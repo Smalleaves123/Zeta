@@ -26,6 +26,8 @@ All notable changes to Zeta are documented here.
   propagation, and cancellation-aware pending receivers.
 - C++20 coroutine adapters in `zeta/futures/coroutine.h`, including
   `zeta::Coroutine`, Future `co_await`, and coroutine fan-in helpers.
+- Container and memory performance baselines for hash maps, inline vectors,
+  fixed-block pools, object pools, and byte buffers.
 - Futures and executor stress coverage plus a `futures_bench` microbenchmark
   for completion, continuation, fan-in, cancellation, scheduling, and
   coroutine-await paths.
@@ -38,6 +40,10 @@ All notable changes to Zeta are documented here.
   cancellation registrations for generic asynchronous components.
 - Future completion, continuation dispatch, and cancellation registration now
   synchronize concurrent completion/cancellation/reset races.
+- `ObjectPool` reuses active-set tracking nodes across create/destroy cycles,
+  reducing steady-state bookkeeping allocations without changing its API.
+- `ByteBuffer` append now reuses available tail capacity before compacting a
+  consumed prefix, reducing data movement in streaming read/consume loops.
 
 ## [0.13.0] - 2026-07-14
 

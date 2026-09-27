@@ -930,6 +930,20 @@ tasks, coroutine `co_await`, and a `std::future` baseline. Fan-in benchmarks
 complete every input before the next iteration so pending continuations do not
 spill into later samples.
 
+Container and memory baselines can be built and run with:
+
+```bash
+cmake --build build-bench --target flat_hash_map_bench container_memory_bench
+./build-bench/benchmarks/container_memory_bench --benchmark_min_time=0.01s
+./build-bench/benchmarks/flat_hash_map_bench --benchmark_min_time=0.01s
+```
+
+`container_memory_bench` covers `std::vector` versus `InlinedVector`,
+`SmallMap` versus `std::unordered_map`, fixed-block `MemoryPool` versus
+`operator new`, `ObjectPool` versus new/delete, and `ByteBuffer` append/consume
+paths. The pool benchmarks reserve their steady-state capacity before timing so
+allocation growth is measured separately from reuse.
+
 | Benchmark | `std::vector` | `zeta::InlinedVector<T,8>` | Benefit |
 |-----------|:---:|:---:|:---:|
 | Create 1M (size ≤ 3) | 1M allocs | **0 allocs** | No heap |

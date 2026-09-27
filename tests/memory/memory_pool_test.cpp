@@ -71,3 +71,23 @@ TEST_CASE("ObjectPool: destroys live values when the pool is destroyed",
     }
     REQUIRE(PooledValue::destructions == 2);
 }
+
+TEST_CASE("ObjectPool: reuses storage and tracking across cycles",
+          "[memory][pool]") {
+    PooledValue::destructions = 0;
+    zeta::ObjectPool<PooledValue> pool(2);
+    pool.Reserve(2);
+
+    for (int cycle = 0; cycle != 4; ++cycle) {
+        auto* first = pool.Create(cycle);
+        auto* second = pool.Create(cycle + 1);
+        REQUIRE(pool.Size() == 2);
+
+        pool.Destroy(first);
+        pool.Destroy(second);
+        REQUIRE(pool.Size() == 0);
+        REQUIRE(pool.Available() == pool.Capacity());
+    }
+
+    REQUIRE(PooledValue::destructions == 8);
+}

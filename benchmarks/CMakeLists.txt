@@ -4,6 +4,7 @@ function(zeta_benchmark name)
 endfunction()
 
 zeta_benchmark(flat_hash_map_bench)
+zeta_benchmark(container_memory_bench)
 zeta_benchmark(futures_bench)
 zeta_benchmark(node_hash_map_bench)
 zeta_benchmark(time_retry_bench)

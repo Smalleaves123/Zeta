@@ -8,8 +8,10 @@
 
 #include <cstddef>
 #include <memory>
+#include <stdexcept>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 namespace zeta {
 
@@ -36,7 +38,7 @@ public:
         try {
             object = std::construct_at(
                 static_cast<T*>(memory), std::forward<Args>(args)...);
-            active_.emplace(object);
+            Track(object);
             return object;
         } catch (...) {
             if (object != nullptr) std::destroy_at(object);
@@ -49,19 +51,28 @@ public:
         if (object == nullptr) return;
         const auto it = active_.find(object);
         if (it == active_.end()) return;
-        active_.erase(it);
+        auto tracking_node = active_.extract(it);
         std::destroy_at(object);
         storage_.Deallocate(object);
+        try {
+            recycled_nodes_.push_back(std::move(tracking_node));
+        } catch (...) {
+            // Destroy remains noexcept. Dropping the extracted node only
+            // releases tracking storage; the object has already been freed.
+        }
     }
 
     void Clear() noexcept {
         for (T* object : active_) std::destroy_at(object);
         active_.clear();
+        recycled_nodes_.clear();
         storage_.Clear();
     }
 
     void Reserve(std::size_t object_count) {
         storage_.Reserve(object_count);
+        active_.reserve(object_count);
+        recycled_nodes_.reserve(object_count);
     }
 
     [[nodiscard]] std::size_t Size() const noexcept {
@@ -77,8 +88,27 @@ public:
     }
 
 private:
+    using ActiveSet = std::unordered_set<T*>;
+    using TrackingNode = typename ActiveSet::node_type;
+
+    void Track(T* object) {
+        if (recycled_nodes_.empty()) {
+            active_.emplace(object);
+            return;
+        }
+
+        TrackingNode node = std::move(recycled_nodes_.back());
+        recycled_nodes_.pop_back();
+        node.value() = object;
+        auto insertion = active_.insert(std::move(node));
+        if (!insertion.inserted) {
+            throw std::logic_error("object pool tracking collision");
+        }
+    }
+
     MemoryPool storage_;
-    std::unordered_set<T*> active_;
+    ActiveSet active_;
+    std::vector<TrackingNode> recycled_nodes_;
 };
 
 } // namespace zeta
