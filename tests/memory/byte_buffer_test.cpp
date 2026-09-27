@@ -26,7 +26,7 @@ TEST_CASE("ByteBuffer: appends text and binary data", "[memory][byte_buffer]") {
     REQUIRE(view.Subspan(5).AsStringView().size() == 3);
 }
 
-TEST_CASE("ByteBuffer: consumes a prefix and compacts on append",
+TEST_CASE("ByteBuffer: consumes a prefix and appends without losing data",
           "[memory][byte_buffer]") {
     zeta::ByteBuffer buffer;
     buffer.Append("prefix-payload");

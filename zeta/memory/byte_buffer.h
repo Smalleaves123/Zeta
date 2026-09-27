@@ -72,7 +72,11 @@ public:
 
     void Append(std::span<const std::byte> bytes) {
         if (bytes.empty()) return;
-        Compact();
+        // Keep the consumed prefix as reusable headroom while there is still
+        // enough tail capacity.  Compact only when an append would otherwise
+        // grow the vector; this avoids repeatedly moving a large readable
+        // suffix in receive/consume loops.
+        if (bytes.size() > storage_.capacity() - storage_.size()) Compact();
         storage_.insert(storage_.end(), bytes.begin(), bytes.end());
     }
 
